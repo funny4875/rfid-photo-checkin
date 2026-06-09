@@ -23,12 +23,13 @@
         <div class="record-actions">
           <button id="upload-student-data" type="button">上傳更新學生資料</button>
           <a class="link-button" href="/api/admin/student-template">下載學生資料excel格式</a>
+          <button id="restore-student-data" type="button">回復上一版的資料</button>
         </div>
       </div>
       <form id="student-upload-form" class="student-upload-form">
         <input id="student-file" name="student_file" type="file" accept=".xlsx" hidden>
       </form>
-      <p class="panel-note">上傳後會覆寫後端的 student_data.txt，系統會先備份舊檔。</p>
+      <p class="panel-note">上傳後會覆寫後端的 student_data.txt，系統只保留最近一次舊檔備份；回復上一版後，需重新上傳才可再次回復。</p>
     </section>
     <section class="locations-panel">
       <div class="panel-header">

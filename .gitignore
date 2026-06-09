@@ -1,5 +1,6 @@
 # Personal/student data
-server/student_data.txt
+server/student_data*.txt
+!server/student_data.example.txt
 server/ccsh_data/
 server/backups/
 

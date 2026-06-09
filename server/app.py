@@ -20,6 +20,8 @@ ROOT_DIR = BASE_DIR.parent
 VERSION_FILE = ROOT_DIR / "VERSION"
 STUDENT_FILE = BASE_DIR / "student_data.txt"
 BACKUP_DIR = BASE_DIR / "backups"
+STUDENT_BACKUP_FILE = BACKUP_DIR / "student_data_previous.txt"
+STUDENT_RESTORE_LOCK = BACKUP_DIR / "student_data_restore_used.flag"
 LOCATION_FILE = BASE_DIR / "場域對應.txt"
 PHOTO_DIR = BASE_DIR / "ccsh_data"
 NO_PICTURE = "noPicture.jpg"
@@ -157,12 +159,47 @@ def create_student_template_workbook() -> Workbook:
         "請保留「學生資料」工作表第一列欄位名稱。",
         "所有欄位建議使用文字格式，避免學號或 UID 前導 0 被 Excel 移除。",
         "UID 格式範例：01234:56789；若尚未建檔可留空或填 ?????:?????。",
-        "匯入後會覆寫 server/student_data.txt，系統會自動備份舊檔到 server/backups/。",
+        "匯入後會覆寫 server/student_data.txt，系統會自動保留最近一次舊檔備份。",
     ]
     for row_index, text in enumerate(notes, start=2):
         note.cell(row=row_index, column=1, value=text)
     note.column_dimensions["A"].width = 90
     return workbook
+
+
+def backup_current_student_file() -> None:
+    BACKUP_DIR.mkdir(exist_ok=True)
+    for old_backup in BACKUP_DIR.glob("student_data_*.txt"):
+        if old_backup != STUDENT_BACKUP_FILE:
+            old_backup.unlink(missing_ok=True)
+    if STUDENT_FILE.exists():
+        shutil.copy2(STUDENT_FILE, STUDENT_BACKUP_FILE)
+        STUDENT_RESTORE_LOCK.unlink(missing_ok=True)
+    else:
+        STUDENT_BACKUP_FILE.unlink(missing_ok=True)
+        STUDENT_RESTORE_LOCK.write_text("no-backup\n", encoding="utf-8")
+
+
+def student_restore_status() -> dict[str, object]:
+    backup_exists = STUDENT_BACKUP_FILE.exists()
+    already_restored = STUDENT_RESTORE_LOCK.exists()
+    return {
+        "can_restore": backup_exists and not already_restored,
+        "backup_exists": backup_exists,
+        "already_restored": already_restored,
+    }
+
+
+def restore_previous_student_file() -> dict[str, object]:
+    status = student_restore_status()
+    if not status["backup_exists"]:
+        raise ValueError("目前沒有上一版學生資料可回復")
+    if status["already_restored"]:
+        raise ValueError("已回復上一版資料，需重新上傳後才能再次回復")
+    with _file_lock:
+        shutil.copy2(STUDENT_BACKUP_FILE, STUDENT_FILE)
+        STUDENT_RESTORE_LOCK.write_text(datetime.now().isoformat(timespec="seconds"), encoding="utf-8")
+    return student_restore_status()
 
 
 def save_uploaded_student_workbook(file_storage) -> dict[str, object]:
@@ -195,10 +232,7 @@ def save_uploaded_student_workbook(file_storage) -> dict[str, object]:
     if not output_rows:
         raise ValueError("沒有可匯入的學生資料")
 
-    BACKUP_DIR.mkdir(exist_ok=True)
-    if STUDENT_FILE.exists():
-        backup_name = f"student_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        shutil.copy2(STUDENT_FILE, BACKUP_DIR / backup_name)
+    backup_current_student_file()
 
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=STUDENT_HEADERS, delimiter="\t", lineterminator="\n")
@@ -513,6 +547,22 @@ def api_admin_student_data_upload():
     except Exception as exc:
         return jsonify({"error": f"匯入失敗：{exc}"}), 400
     return jsonify({"message": "學生資料已更新", **result})
+
+
+@app.get("/api/admin/student-data/restore/status")
+def api_admin_student_data_restore_status():
+    return jsonify(student_restore_status())
+
+
+@app.post("/api/admin/student-data/restore")
+def api_admin_student_data_restore():
+    try:
+        status = restore_previous_student_file()
+    except ValueError as exc:
+        return jsonify({"error": str(exc), **student_restore_status()}), 400
+    except Exception as exc:
+        return jsonify({"error": f"回復失敗：{exc}", **student_restore_status()}), 400
+    return jsonify({"message": "已回復上一版學生資料", **status})
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ const saveLocationsButton = document.querySelector("#save-locations");
 const studentUploadForm = document.querySelector("#student-upload-form");
 const studentFileInput = document.querySelector("#student-file");
 const uploadStudentButton = document.querySelector("#upload-student-data");
+const restoreStudentButton = document.querySelector("#restore-student-data");
 const adminGrid = document.querySelector(".admin-grid");
 const mergedArticle = document.querySelector(".merged");
 
@@ -90,6 +91,24 @@ async function loadVersion() {
   }
 }
 
+async function loadStudentRestoreStatus() {
+  try {
+    const response = await fetch("/api/admin/student-data/restore/status");
+    const data = await response.json();
+    restoreStudentButton.disabled = !data.can_restore;
+    if (!data.backup_exists) {
+      restoreStudentButton.title = "目前沒有上一版備份";
+    } else if (data.already_restored) {
+      restoreStudentButton.title = "已回復上一版，需重新上傳後才能再次回復";
+    } else {
+      restoreStudentButton.title = "將 student_data.txt 回復成最近一次上傳前的版本";
+    }
+  } catch (_error) {
+    restoreStudentButton.disabled = true;
+    restoreStudentButton.title = "無法讀取備份狀態";
+  }
+}
+
 async function postAction(url, doneText) {
   statusText.textContent = "執行中...";
   const response = await fetch(url, { method: "POST" });
@@ -123,6 +142,19 @@ archiveButton.addEventListener("click", () => postAction("/api/admin/archive", "
 addLocationButton.addEventListener("click", () => addLocationRow());
 saveLocationsButton.addEventListener("click", saveLocations);
 uploadStudentButton.addEventListener("click", () => studentFileInput.click());
+restoreStudentButton.addEventListener("click", async () => {
+  if (!confirm("確定要回復上一版學生資料？回復後不能連續再回復。")) return;
+  statusText.textContent = "回復學生資料中...";
+  const response = await fetch("/api/admin/student-data/restore", { method: "POST" });
+  const data = await response.json();
+  if (!response.ok) {
+    statusText.textContent = data.error || "回復失敗";
+    await loadStudentRestoreStatus();
+    return;
+  }
+  statusText.textContent = data.message || "已回復上一版學生資料";
+  await loadStudentRestoreStatus();
+});
 studentFileInput.addEventListener("change", async () => {
   if (!studentFileInput.files.length) return;
   const formData = new FormData(studentUploadForm);
@@ -134,10 +166,14 @@ studentFileInput.addEventListener("change", async () => {
   const data = await response.json();
   if (!response.ok) {
     statusText.textContent = data.error || "匯入失敗";
+    studentUploadForm.reset();
+    await loadStudentRestoreStatus();
     return;
   }
   statusText.textContent = `${data.message}，共 ${data.count} 筆`;
   studentUploadForm.reset();
+  await loadStudentRestoreStatus();
 });
 loadAdminRecords();
 loadVersion();
+loadStudentRestoreStatus();
