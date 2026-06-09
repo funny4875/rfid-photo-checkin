@@ -3,11 +3,14 @@ from __future__ import annotations
 import csv
 import io
 import re
+import secrets
 import shutil
 import threading
 import time
+from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from pathlib import Path, PurePosixPath
+from urllib.parse import quote
 
 from flask import Flask, abort, jsonify, render_template, request, send_file, send_from_directory
 from openpyxl import Workbook, load_workbook
@@ -29,10 +32,19 @@ VALID_DIRECTIONS = {"刷進", "刷出"}
 RECORD_RE = re.compile(r"^門禁記錄(?:\d+)?_(\d{8})\.txt$")
 STUDENT_HEADERS = ["編號", "UID", "學號", "座號", "班級", "姓名"]
 PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+PHOTO_TOKEN_TTL_SECONDS = 60
+PHOTO_TOKEN_MAX_USES = 3
+PHOTO_RATE_WINDOW_SECONDS = 60
+PHOTO_RATE_MAX_REQUESTS = 120
+PHOTO_RATE_BLOCK_SECONDS = 300
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 _file_lock = threading.Lock()
+_photo_lock = threading.Lock()
+_photo_tokens: dict[str, dict[str, object]] = {}
+_photo_hits: defaultdict[str, deque[float]] = defaultdict(deque)
+_photo_blocked_until: dict[str, float] = {}
 
 
 def today_str() -> str:
@@ -119,8 +131,86 @@ def photo_filename(student_id: str) -> str:
     return NO_PICTURE
 
 
-def photo_url(student_id: str) -> str:
-    return f"/photo/{photo_filename(student_id)}"
+def cleanup_photo_guards(now: float | None = None) -> None:
+    current = now or time.time()
+    expired_tokens = [
+        token
+        for token, token_data in _photo_tokens.items()
+        if float(token_data.get("expires_at") or 0) <= current
+    ]
+    for token in expired_tokens:
+        _photo_tokens.pop(token, None)
+    expired_blocks = [
+        client_id
+        for client_id, blocked_until in _photo_blocked_until.items()
+        if blocked_until <= current
+    ]
+    for client_id in expired_blocks:
+        _photo_blocked_until.pop(client_id, None)
+
+
+def photo_client_id() -> str:
+    return request.remote_addr or "unknown"
+
+
+def issue_photo_url(photo_file: str) -> str:
+    if not photo_file.startswith("ccsh_data/"):
+        return f"/photo/{NO_PICTURE}"
+    filename = PurePosixPath(photo_file.replace("\\", "/")).name
+    token = secrets.token_urlsafe(24)
+    with _photo_lock:
+        cleanup_photo_guards()
+        _photo_tokens[token] = {
+            "filename": filename,
+            "expires_at": time.time() + PHOTO_TOKEN_TTL_SECONDS,
+            "uses_left": PHOTO_TOKEN_MAX_USES,
+        }
+    return f"/photo/ccsh_data/{quote(filename)}?token={quote(token)}"
+
+
+def student_for_response(student: dict[str, str]) -> dict[str, str]:
+    public_student = dict(student)
+    public_student["photo_url"] = issue_photo_url(student.get("photo_file") or NO_PICTURE)
+    public_student.pop("photo_file", None)
+    return public_student
+
+
+def consume_photo_token(token: str | None, filename: str) -> bool:
+    if not token:
+        return False
+    with _photo_lock:
+        cleanup_photo_guards()
+        token_data = _photo_tokens.get(token)
+        if not token_data or token_data.get("filename") != filename:
+            return False
+        uses_left = int(token_data.get("uses_left") or 0)
+        if uses_left <= 0:
+            _photo_tokens.pop(token, None)
+            return False
+        if uses_left == 1:
+            _photo_tokens.pop(token, None)
+        else:
+            token_data["uses_left"] = uses_left - 1
+        return True
+
+
+def allow_photo_request() -> bool:
+    now = time.time()
+    client_id = photo_client_id()
+    with _photo_lock:
+        cleanup_photo_guards(now)
+        blocked_until = _photo_blocked_until.get(client_id)
+        if blocked_until and blocked_until > now:
+            return False
+        hits = _photo_hits[client_id]
+        while hits and hits[0] <= now - PHOTO_RATE_WINDOW_SECONDS:
+            hits.popleft()
+        hits.append(now)
+        if len(hits) > PHOTO_RATE_MAX_REQUESTS:
+            _photo_blocked_until[client_id] = now + PHOTO_RATE_BLOCK_SECONDS
+            hits.clear()
+            return False
+    return True
 
 
 def excel_cell_text(value: object) -> str:
@@ -264,7 +354,7 @@ def load_students() -> dict[str, dict[str, str]]:
                 "seat": format_seat(row.get("座號") or ""),
                 "class_name": (row.get("班級") or "").strip(),
                 "name": (row.get("姓名") or "").strip(),
-                "photo_url": photo_url(student_id),
+                "photo_file": photo_filename(student_id),
             }
     return students
 
@@ -417,7 +507,11 @@ def photo(filename: str):
         and photo_path.suffix.lower() in PHOTO_EXTENSIONS
         and not photo_path.name.lower().startswith("student_data")
     ):
-        return send_from_directory(PHOTO_DIR, photo_path.name)
+        if not allow_photo_request():
+            abort(429)
+        if not consume_photo_token(request.args.get("token"), photo_path.name):
+            abort(404)
+        return send_from_directory(PHOTO_DIR, photo_path.name, max_age=0)
     abort(404)
 
 
@@ -431,7 +525,7 @@ def api_student(student_id: str):
     student = get_student_or_none(student_id)
     if not student:
         return jsonify({"error": "查無此學號"}), 404
-    return jsonify({"student": student})
+    return jsonify({"student": student_for_response(student)})
 
 
 @app.post("/api/checkin")
@@ -446,7 +540,7 @@ def api_checkin():
     if not student:
         return jsonify({"error": "查無此學號"}), 404
     record = write_record(machine_id, student, direction)
-    return jsonify({"student": student, "record": record, "records": records_for_machine(machine_id)})
+    return jsonify({"student": student_for_response(student), "record": record, "records": records_for_machine(machine_id)})
 
 
 @app.post("/api/checkin_uid")
@@ -463,7 +557,7 @@ def api_checkin_uid():
     if not student:
         return jsonify({"error": "UID 未建檔", "uid": uid, "records": records_for_machine(machine_id)}), 404
     record = write_record(machine_id, student, direction)
-    return jsonify({"student": student, "record": record, "records": records_for_machine(machine_id), "uid": uid})
+    return jsonify({"student": student_for_response(student), "record": record, "records": records_for_machine(machine_id), "uid": uid})
 
 
 @app.get("/api/rfid/status")
