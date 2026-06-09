@@ -9,6 +9,7 @@ RFID Photo Check-in 是一套校園門禁/出勤登記系統，支援 ACR122U �
 - client GUI 可選擇場域、輸入伺服器 IP，並開啟本機代理網頁。
 - 前台顯示學生照片與資料，刷卡後自動寫入門禁紀錄。
 - 後台可管理場域對應，例如 `機台0 = 警衛室`、`機台1 = 教官室`。
+- 後台可下載學生資料 Excel 範本，並上傳 Excel 更新 `student_data.txt`。
 - 每日紀錄支援手動/排程整併與歸檔。
 
 ## 專案結構
@@ -35,6 +36,7 @@ DEPLOY.md      部署流程
 
 ```text
 server/student_data.example.txt
+server/student_data_template.xlsx
 ```
 
 ## 後端啟動
@@ -84,6 +86,16 @@ server/場域對應.txt
 
 也可以到後台 `/admin` 編輯。
 
+## 學生資料匯入
+
+學期初可到後台 `/admin` 的「學生資料更新」區塊：
+
+1. 下載 Excel 範本。
+2. 依範本填入或貼上全校資料。
+3. 上傳 `.xlsx`。
+
+匯入後會覆寫 `server/student_data.txt`，並先將舊檔備份到 `server/backups/`。
+
 ## 需求
 
 - Windows
@@ -98,4 +110,3 @@ server/場域對應.txt
 ```powershell
 python -m py_compile server\app.py client\client_ui.py client\client_agent.py client\acr122_reader.py
 ```
-

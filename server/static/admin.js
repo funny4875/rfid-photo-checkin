@@ -4,6 +4,7 @@ const archiveButton = document.querySelector("#archive-now");
 const locationsList = document.querySelector("#locations-list");
 const addLocationButton = document.querySelector("#add-location");
 const saveLocationsButton = document.querySelector("#save-locations");
+const studentUploadForm = document.querySelector("#student-upload-form");
 const adminGrid = document.querySelector(".admin-grid");
 const mergedArticle = document.querySelector(".merged");
 
@@ -108,4 +109,20 @@ mergeButton.addEventListener("click", () => postAction("/api/admin/merge", "已�
 archiveButton.addEventListener("click", () => postAction("/api/admin/archive", "已完成歸檔"));
 addLocationButton.addEventListener("click", () => addLocationRow());
 saveLocationsButton.addEventListener("click", saveLocations);
+studentUploadForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(studentUploadForm);
+  statusText.textContent = "學生資料匯入中...";
+  const response = await fetch("/api/admin/student-data/upload", {
+    method: "POST",
+    body: formData,
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    statusText.textContent = data.error || "匯入失敗";
+    return;
+  }
+  statusText.textContent = `${data.message}，共 ${data.count} 筆`;
+  studentUploadForm.reset();
+});
 loadAdminRecords();

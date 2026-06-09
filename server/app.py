@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import io
 import re
 import shutil
 import threading
@@ -8,16 +9,21 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, render_template, request, send_from_directory
+from flask import Flask, abort, jsonify, render_template, request, send_file, send_from_directory
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 
 BASE_DIR = Path(__file__).resolve().parent
 STUDENT_FILE = BASE_DIR / "student_data.txt"
+BACKUP_DIR = BASE_DIR / "backups"
 LOCATION_FILE = BASE_DIR / "場域對應.txt"
 PHOTO_DIR = BASE_DIR / "ccsh_data"
 NO_PICTURE = "noPicture.jpg"
 VALID_DIRECTIONS = {"刷進", "刷出"}
 RECORD_RE = re.compile(r"^門禁記錄(?:\d+)?_(\d{8})\.txt$")
+STUDENT_HEADERS = ["編號", "UID", "學號", "座號", "班級", "姓名", "身份証"]
 
 app = Flask(__name__)
 _file_lock = threading.Lock()
@@ -103,6 +109,96 @@ def photo_filename(student_id: str) -> str:
 
 def photo_url(student_id: str) -> str:
     return f"/photo/{photo_filename(student_id)}"
+
+
+def excel_cell_text(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
+def create_student_template_workbook() -> Workbook:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "學生資料"
+    sheet.append(STUDENT_HEADERS)
+    sheet.append(["1", "01234:56789", "400001", "1", "高一1", "王小明", "A123456789"])
+    sheet.append(["2", "02345:67890", "400002", "2", "高一1", "陳小華", "B123456789"])
+
+    header_fill = PatternFill("solid", fgColor="12736B")
+    for cell in sheet[1]:
+        cell.fill = header_fill
+        cell.font = Font(color="FFFFFF", bold=True)
+        cell.alignment = Alignment(horizontal="center")
+
+    widths = [10, 16, 14, 10, 14, 16, 18]
+    for index, width in enumerate(widths, start=1):
+        letter = get_column_letter(index)
+        sheet.column_dimensions[letter].width = width
+        for cell in sheet[letter]:
+            cell.number_format = "@"
+
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = "A1:G3"
+    note = workbook.create_sheet("說明")
+    note["A1"] = "匯入說明"
+    note["A1"].font = Font(bold=True, size=14)
+    notes = [
+        "請保留「學生資料」工作表第一列欄位名稱。",
+        "所有欄位建議使用文字格式，避免學號、身份証或 UID 前導 0 被 Excel 移除。",
+        "UID 格式範例：01234:56789；若尚未建檔可留空或填 ?????:?????。",
+        "匯入後會覆寫 server/student_data.txt，系統會自動備份舊檔到 server/backups/。",
+    ]
+    for row_index, text in enumerate(notes, start=2):
+        note.cell(row=row_index, column=1, value=text)
+    note.column_dimensions["A"].width = 90
+    return workbook
+
+
+def save_uploaded_student_workbook(file_storage) -> dict[str, object]:
+    workbook = load_workbook(file_storage, data_only=True, read_only=True)
+    sheet = workbook["學生資料"] if "學生資料" in workbook.sheetnames else workbook.active
+    rows = sheet.iter_rows(values_only=True)
+    try:
+        header_row = [excel_cell_text(value) for value in next(rows)]
+    except StopIteration:
+        raise ValueError("Excel 檔案沒有資料")
+
+    missing = [header for header in STUDENT_HEADERS if header not in header_row]
+    if missing:
+        raise ValueError(f"缺少欄位：{', '.join(missing)}")
+
+    indexes = {header: header_row.index(header) for header in STUDENT_HEADERS}
+    output_rows: list[dict[str, str]] = []
+    for row in rows:
+        values = list(row)
+        item = {
+            header: excel_cell_text(values[indexes[header]]) if indexes[header] < len(values) else ""
+            for header in STUDENT_HEADERS
+        }
+        if not any(item.values()):
+            continue
+        if not item["學號"]:
+            continue
+        output_rows.append(item)
+
+    if not output_rows:
+        raise ValueError("沒有可匯入的學生資料")
+
+    BACKUP_DIR.mkdir(exist_ok=True)
+    if STUDENT_FILE.exists():
+        backup_name = f"student_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        shutil.copy2(STUDENT_FILE, BACKUP_DIR / backup_name)
+
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=STUDENT_HEADERS, delimiter="\t", lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(output_rows)
+    with _file_lock:
+        STUDENT_FILE.write_text(buffer.getvalue(), encoding="utf-8")
+    return {"count": len(output_rows)}
 
 
 def load_students() -> dict[str, dict[str, str]]:
@@ -375,6 +471,36 @@ def api_admin_merge():
 @app.post("/api/admin/archive")
 def api_admin_archive():
     return jsonify(archive_old_records())
+
+
+@app.get("/api/admin/student-template")
+def api_admin_student_template():
+    workbook = create_student_template_workbook()
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="student_data_template.xlsx",
+    )
+
+
+@app.post("/api/admin/student-data/upload")
+def api_admin_student_data_upload():
+    upload = request.files.get("student_file")
+    if not upload or not upload.filename:
+        return jsonify({"error": "請選擇 Excel 檔案"}), 400
+    if not upload.filename.lower().endswith(".xlsx"):
+        return jsonify({"error": "只支援 .xlsx 檔案"}), 400
+    try:
+        result = save_uploaded_student_workbook(upload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"匯入失敗：{exc}"}), 400
+    return jsonify({"message": "學生資料已更新", **result})
 
 
 if __name__ == "__main__":

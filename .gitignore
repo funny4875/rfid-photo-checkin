@@ -1,6 +1,7 @@
 # Personal/student data
 server/student_data.txt
 server/ccsh_data/
+server/backups/
 
 # Attendance records and generated local files
 server/門禁記錄*.txt
@@ -22,4 +23,3 @@ Thumbs.db
 .DS_Store
 .vscode/
 .idea/
-

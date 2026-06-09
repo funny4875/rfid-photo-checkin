@@ -41,7 +41,8 @@ select {
 .station-panel,
 .records-panel,
 .admin-shell article,
-.locations-panel {
+.locations-panel,
+.student-import-panel {
   background: #ffffff;
   border: 1px solid #d9e0e6;
   border-radius: 8px;
@@ -360,6 +361,32 @@ dd {
 .locations-panel {
   display: grid;
   gap: 14px;
+}
+
+.student-import-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.student-upload-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.student-upload-form input[type="file"] {
+  min-height: 40px;
+  border: 1px solid #bdc9d2;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #f7fafc;
+}
+
+.panel-note {
+  margin: 0;
+  color: #60717e;
+  font-size: 14px;
 }
 
 .locations-list {

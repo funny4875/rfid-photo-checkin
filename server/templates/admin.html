@@ -17,6 +17,17 @@
       <button id="archive-now" type="button">清理歸檔</button>
       <span id="admin-status"></span>
     </div>
+    <section class="student-import-panel">
+      <div class="panel-header">
+        <h2>學生資料更新</h2>
+        <a class="link-button" href="/api/admin/student-template">下載 Excel 範本</a>
+      </div>
+      <form id="student-upload-form" class="student-upload-form">
+        <input id="student-file" name="student_file" type="file" accept=".xlsx">
+        <button type="submit">上傳並更新 student_data</button>
+      </form>
+      <p class="panel-note">上傳後會覆寫後端的 student_data.txt，系統會先備份舊檔。</p>
+    </section>
     <section class="locations-panel">
       <div class="panel-header">
         <h2>場域設定</h2>
