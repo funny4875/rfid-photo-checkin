@@ -368,6 +368,30 @@ dd {
   gap: 12px;
 }
 
+.photo-upload-panel {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #d9e0e6;
+}
+
+.panel-header.compact h3 {
+  font-size: 18px;
+}
+
+.checkbox-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  color: #1c252c;
+}
+
+.checkbox-control input {
+  width: 18px;
+  height: 18px;
+}
+
 .student-upload-form {
   display: none;
 }

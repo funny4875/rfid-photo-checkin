@@ -105,6 +105,8 @@ server\student_data.txt
 server\backups
 ```
 
+同一後台區塊也可上傳全校照片 ZIP。照片檔名需為 `<學號>.jpg`，例如 `410054.jpg`。若勾選「上傳新照片後刪除舊照片」，系統會先清空目前設定的 `ccsh_data` 照片資料夾，再匯入 ZIP 內的新照片。
+
 ## 資料流
 
 ```text

@@ -9,6 +9,10 @@ const studentUploadForm = document.querySelector("#student-upload-form");
 const studentFileInput = document.querySelector("#student-file");
 const uploadStudentButton = document.querySelector("#upload-student-data");
 const restoreStudentButton = document.querySelector("#restore-student-data");
+const photoUploadForm = document.querySelector("#photo-upload-form");
+const photoZipInput = document.querySelector("#photo-zip-file");
+const uploadPhotoZipButton = document.querySelector("#upload-photo-zip");
+const clearOldPhotosInput = document.querySelector("#clear-old-photos");
 const adminGrid = document.querySelector(".admin-grid");
 const mergedArticle = document.querySelector(".merged");
 
@@ -142,6 +146,7 @@ archiveButton.addEventListener("click", () => postAction("/api/admin/archive", "
 addLocationButton.addEventListener("click", () => addLocationRow());
 saveLocationsButton.addEventListener("click", saveLocations);
 uploadStudentButton.addEventListener("click", () => studentFileInput.click());
+uploadPhotoZipButton.addEventListener("click", () => photoZipInput.click());
 restoreStudentButton.addEventListener("click", async () => {
   if (!confirm("確定要回復上一版學生資料？回復後不能連續再回復。")) return;
   statusText.textContent = "回復學生資料中...";
@@ -173,6 +178,29 @@ studentFileInput.addEventListener("change", async () => {
   statusText.textContent = `${data.message}，共 ${data.count} 筆`;
   studentUploadForm.reset();
   await loadStudentRestoreStatus();
+});
+photoZipInput.addEventListener("change", async () => {
+  if (!photoZipInput.files.length) return;
+  if (clearOldPhotosInput.checked && !confirm("確定要先刪除舊照片，再匯入 ZIP 內的新照片？")) {
+    photoUploadForm.reset();
+    return;
+  }
+  const formData = new FormData(photoUploadForm);
+  formData.set("clear_old_photos", clearOldPhotosInput.checked ? "1" : "0");
+  statusText.textContent = "學生照片匯入中...";
+  const response = await fetch("/api/admin/photos/upload", {
+    method: "POST",
+    body: formData,
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    statusText.textContent = data.error || "照片匯入失敗";
+    photoUploadForm.reset();
+    return;
+  }
+  const removedText = clearOldPhotosInput.checked ? `，已清除 ${data.removed} 個舊項目` : "";
+  statusText.textContent = `${data.message}，共 ${data.count} 張${removedText}`;
+  photoUploadForm.reset();
 });
 loadAdminRecords();
 loadVersion();

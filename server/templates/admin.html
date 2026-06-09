@@ -30,6 +30,22 @@
         <input id="student-file" name="student_file" type="file" accept=".xlsx" hidden>
       </form>
       <p class="panel-note">上傳後會覆寫後端的 student_data.txt，系統只保留最近一次舊檔備份；回復上一版後，需重新上傳才可再次回復。</p>
+      <div class="photo-upload-panel">
+        <div class="panel-header compact">
+          <h3>學生照片更新</h3>
+          <div class="record-actions">
+            <label class="checkbox-control">
+              <input id="clear-old-photos" type="checkbox">
+              <span>上傳新照片後刪除舊照片</span>
+            </label>
+            <button id="upload-photo-zip" type="button">上傳照片ZIP</button>
+          </div>
+        </div>
+        <form id="photo-upload-form" class="student-upload-form">
+          <input id="photo-zip-file" name="photo_zip" type="file" accept=".zip" hidden>
+        </form>
+        <p class="panel-note">照片格式為 &lt;學號&gt;.jpg，整批壓縮成 ZIP 後上傳；上傳後會解壓縮到目前設定的照片資料夾。</p>
+      </div>
     </section>
     <section class="locations-panel">
       <div class="panel-header">

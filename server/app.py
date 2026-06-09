@@ -7,6 +7,7 @@ import secrets
 import shutil
 import threading
 import time
+import zipfile
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from pathlib import Path, PurePosixPath
@@ -32,6 +33,8 @@ VALID_DIRECTIONS = {"刷進", "刷出"}
 RECORD_RE = re.compile(r"^門禁記錄(?:\d+)?_(\d{8})\.txt$")
 STUDENT_HEADERS = ["編號", "UID", "學號", "座號", "班級", "姓名"]
 PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+PHOTO_UPLOAD_EXTENSIONS = {".jpg", ".jpeg"}
+PHOTO_UPLOAD_RE = re.compile(r"^\d+\.jpe?g$", re.IGNORECASE)
 PHOTO_TOKEN_TTL_SECONDS = 60
 PHOTO_TOKEN_MAX_USES = 3
 PHOTO_RATE_WINDOW_SECONDS = 60
@@ -353,6 +356,66 @@ def save_uploaded_student_workbook(file_storage) -> dict[str, object]:
     return {"count": len(output_rows)}
 
 
+def validate_photo_upload_zip(zip_file: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
+    photos: list[zipfile.ZipInfo] = []
+    seen: set[str] = set()
+    for item in zip_file.infolist():
+        if item.is_dir():
+            continue
+        filename = PurePosixPath(item.filename.replace("\\", "/")).name
+        if not filename:
+            continue
+        if not PHOTO_UPLOAD_RE.match(filename):
+            continue
+        key = filename.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        photos.append(item)
+    if not photos:
+        raise ValueError("ZIP 內沒有符合 <學號>.jpg 的照片")
+    return photos
+
+
+def clear_photo_directory(photo_dir: Path) -> int:
+    resolved = photo_dir.resolve()
+    if resolved.name.lower() != "ccsh_data":
+        raise ValueError("勾選刪除舊照片時，照片資料夾名稱必須是 ccsh_data，避免誤刪其他資料夾")
+    photo_dir.mkdir(parents=True, exist_ok=True)
+    removed = 0
+    for item in photo_dir.iterdir():
+        if item.is_dir():
+            shutil.rmtree(item)
+            removed += 1
+        else:
+            item.unlink()
+            removed += 1
+    return removed
+
+
+def save_uploaded_photo_zip(file_storage, clear_old: bool = False) -> dict[str, object]:
+    photo_dir = load_photo_dir()
+    try:
+        with zipfile.ZipFile(file_storage) as archive:
+            photos = validate_photo_upload_zip(archive)
+            removed = clear_photo_directory(photo_dir) if clear_old else 0
+            photo_dir.mkdir(parents=True, exist_ok=True)
+            saved = 0
+            for item in photos:
+                filename = PurePosixPath(item.filename.replace("\\", "/")).name
+                destination = photo_dir / filename
+                with archive.open(item) as source, destination.open("wb") as target:
+                    shutil.copyfileobj(source, target)
+                saved += 1
+    except zipfile.BadZipFile:
+        raise ValueError("ZIP 檔案格式錯誤")
+    with _photo_lock:
+        _photo_tokens.clear()
+        _photo_hits.clear()
+        _photo_blocked_until.clear()
+    return {"count": saved, "removed": removed, "photo_dir": str(photo_dir)}
+
+
 def load_students() -> dict[str, dict[str, str]]:
     students: dict[str, dict[str, str]] = {}
     if not STUDENT_FILE.exists():
@@ -671,6 +734,23 @@ def api_admin_student_data_upload():
     except Exception as exc:
         return jsonify({"error": f"匯入失敗：{exc}"}), 400
     return jsonify({"message": "學生資料已更新", **result})
+
+
+@app.post("/api/admin/photos/upload")
+def api_admin_photos_upload():
+    upload = request.files.get("photo_zip")
+    if not upload or not upload.filename:
+        return jsonify({"error": "請選擇照片 ZIP 檔案"}), 400
+    if not upload.filename.lower().endswith(".zip"):
+        return jsonify({"error": "只支援 .zip 檔案"}), 400
+    clear_old = request.form.get("clear_old_photos") == "1"
+    try:
+        result = save_uploaded_photo_zip(upload, clear_old=clear_old)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"照片匯入失敗：{exc}"}), 400
+    return jsonify({"message": "學生照片已更新", **result})
 
 
 @app.get("/api/admin/student-data/restore/status")
