@@ -10,6 +10,8 @@ server/*.log
 server/preview.*
 server/rfid_frontend_check.png
 rfid_fullscreen_preview*.png
+admin_student_import_check*.png
+server/admin_check.*
 
 # Local client configuration
 client/config.txt

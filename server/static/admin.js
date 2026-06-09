@@ -40,8 +40,8 @@ function addLocationRow(machineId = "", label = "") {
   const row = document.createElement("div");
   row.className = "location-row";
   row.innerHTML = `
-    <label>機台編號<input class="location-machine" inputmode="numeric" value="${machineId}"></label>
-    <label>場域名稱<input class="location-label" value="${label}"></label>
+    <label>機台編號<input class="location-machine" name="machine_id" inputmode="numeric" value="${machineId}"></label>
+    <label>場域名稱<input class="location-label" name="location_label" value="${label}"></label>
     <button type="button">刪除</button>
   `;
   row.querySelector("button").addEventListener("click", () => row.remove());
