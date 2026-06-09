@@ -30,6 +30,7 @@ RECORD_RE = re.compile(r"^門禁記錄(?:\d+)?_(\d{8})\.txt$")
 STUDENT_HEADERS = ["編號", "UID", "學號", "座號", "班級", "姓名"]
 
 app = Flask(__name__)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 _file_lock = threading.Lock()
 
 
