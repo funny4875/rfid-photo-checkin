@@ -23,7 +23,7 @@ PHOTO_DIR = BASE_DIR / "ccsh_data"
 NO_PICTURE = "noPicture.jpg"
 VALID_DIRECTIONS = {"刷進", "刷出"}
 RECORD_RE = re.compile(r"^門禁記錄(?:\d+)?_(\d{8})\.txt$")
-STUDENT_HEADERS = ["編號", "UID", "學號", "座號", "班級", "姓名", "身份証"]
+STUDENT_HEADERS = ["編號", "UID", "學號", "座號", "班級", "姓名"]
 
 app = Flask(__name__)
 _file_lock = threading.Lock()
@@ -124,8 +124,8 @@ def create_student_template_workbook() -> Workbook:
     sheet = workbook.active
     sheet.title = "學生資料"
     sheet.append(STUDENT_HEADERS)
-    sheet.append(["1", "01234:56789", "400001", "1", "高一1", "王小明", "A123456789"])
-    sheet.append(["2", "02345:67890", "400002", "2", "高一1", "陳小華", "B123456789"])
+    sheet.append(["1", "01234:56789", "400001", "1", "高一1", "王小明"])
+    sheet.append(["2", "02345:67890", "400002", "2", "高一1", "陳小華"])
 
     header_fill = PatternFill("solid", fgColor="12736B")
     for cell in sheet[1]:
@@ -133,7 +133,7 @@ def create_student_template_workbook() -> Workbook:
         cell.font = Font(color="FFFFFF", bold=True)
         cell.alignment = Alignment(horizontal="center")
 
-    widths = [10, 16, 14, 10, 14, 16, 18]
+    widths = [10, 16, 14, 10, 14, 16]
     for index, width in enumerate(widths, start=1):
         letter = get_column_letter(index)
         sheet.column_dimensions[letter].width = width
@@ -141,13 +141,13 @@ def create_student_template_workbook() -> Workbook:
             cell.number_format = "@"
 
     sheet.freeze_panes = "A2"
-    sheet.auto_filter.ref = "A1:G3"
+    sheet.auto_filter.ref = "A1:F3"
     note = workbook.create_sheet("說明")
     note["A1"] = "匯入說明"
     note["A1"].font = Font(bold=True, size=14)
     notes = [
         "請保留「學生資料」工作表第一列欄位名稱。",
-        "所有欄位建議使用文字格式，避免學號、身份証或 UID 前導 0 被 Excel 移除。",
+        "所有欄位建議使用文字格式，避免學號或 UID 前導 0 被 Excel 移除。",
         "UID 格式範例：01234:56789；若尚未建檔可留空或填 ?????:?????。",
         "匯入後會覆寫 server/student_data.txt，系統會自動備份舊檔到 server/backups/。",
     ]
@@ -220,7 +220,6 @@ def load_students() -> dict[str, dict[str, str]]:
                 "seat": format_seat(row.get("座號") or ""),
                 "class_name": (row.get("班級") or "").strip(),
                 "name": (row.get("姓名") or "").strip(),
-                "identity": (row.get("身份証") or "").strip(),
                 "photo_url": photo_url(student_id),
             }
     return students

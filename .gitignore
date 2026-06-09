@@ -5,6 +5,7 @@ server/backups/
 
 # Attendance records and generated local files
 server/門禁記錄*.txt
+server/[0-9][0-9][0-9][0-9]/
 server/*.log
 server/preview.*
 server/rfid_frontend_check.png
