@@ -54,7 +54,7 @@ function Test-GitAvailable {
 
 function Update-WithGit {
     Push-Location $RepoRoot
-    $protectedFiles = @("server/場域對應.txt", "server/照片資料夾.txt")
+    $protectedFiles = @("server/場域對應.txt")
     $protectedBackupDir = Join-Path ([System.IO.Path]::GetTempPath()) ("rfid-photo-checkin-protected-" + [guid]::NewGuid().ToString("N"))
     try {
         git remote get-url origin 2>&1 | Out-Null
@@ -128,7 +128,6 @@ function Should-SkipRelativePath($relativePath) {
     if ($p -eq ".github_version") { return $true }
     if ($p -eq "server/student_data.txt") { return $true }
     if ($p -eq "server/場域對應.txt") { return $true }
-    if ($p -eq "server/照片資料夾.txt") { return $true }
     if ($p -eq "client/config.txt") { return $true }
     if ($p -eq "server/ccsh_data" -or $p.StartsWith("server/ccsh_data/")) { return $true }
     if ($p -eq "server/backups" -or $p.StartsWith("server/backups/")) { return $true }

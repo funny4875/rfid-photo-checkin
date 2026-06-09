@@ -27,7 +27,7 @@ BACKUP_DIR = BASE_DIR / "backups"
 STUDENT_BACKUP_FILE = BACKUP_DIR / "student_data_previous.txt"
 STUDENT_RESTORE_LOCK = BACKUP_DIR / "student_data_restore_used.flag"
 LOCATION_FILE = BASE_DIR / "場域對應.txt"
-PHOTO_DIR_FILE = BASE_DIR / "照片資料夾.txt"
+PHOTO_DIR = BASE_DIR / "ccsh_data"
 NO_PICTURE = "noPicture.jpg"
 VALID_DIRECTIONS = {"刷進", "刷出"}
 RECORD_RE = re.compile(r"^門禁記錄(?:\d+)?_(\d{8})\.txt$")
@@ -58,23 +58,6 @@ def app_version() -> str:
     if VERSION_FILE.exists():
         return VERSION_FILE.read_text(encoding="utf-8").strip()
     return "0.0.0"
-
-
-def ensure_photo_dir_file() -> None:
-    if PHOTO_DIR_FILE.exists():
-        return
-    PHOTO_DIR_FILE.write_text("ccsh_data\n", encoding="utf-8")
-
-
-def load_photo_dir() -> Path:
-    ensure_photo_dir_file()
-    value = PHOTO_DIR_FILE.read_text(encoding="utf-8-sig").strip()
-    if not value:
-        value = "ccsh_data"
-    path = Path(value)
-    if not path.is_absolute():
-        path = BASE_DIR / path
-    return path
 
 
 def record_path(machine_id: str, date_text: str | None = None) -> Path:
@@ -144,9 +127,8 @@ def display_uid(value: str) -> str:
 
 
 def photo_filename(student_id: str) -> str:
-    photo_dir = load_photo_dir()
     for suffix in (".jpg", ".JPG"):
-        candidate = photo_dir / f"{student_id}{suffix}"
+        candidate = PHOTO_DIR / f"{student_id}{suffix}"
         if candidate.exists():
             return f"ccsh_data/{candidate.name}"
     return NO_PICTURE
@@ -394,16 +376,15 @@ def clear_photo_directory(photo_dir: Path) -> int:
 
 
 def save_uploaded_photo_zip(file_storage, clear_old: bool = False) -> dict[str, object]:
-    photo_dir = load_photo_dir()
     try:
         with zipfile.ZipFile(file_storage) as archive:
             photos = validate_photo_upload_zip(archive)
-            removed = clear_photo_directory(photo_dir) if clear_old else 0
-            photo_dir.mkdir(parents=True, exist_ok=True)
+            removed = clear_photo_directory(PHOTO_DIR) if clear_old else 0
+            PHOTO_DIR.mkdir(parents=True, exist_ok=True)
             saved = 0
             for item in photos:
                 filename = PurePosixPath(item.filename.replace("\\", "/")).name
-                destination = photo_dir / filename
+                destination = PHOTO_DIR / filename
                 with archive.open(item) as source, destination.open("wb") as target:
                     shutil.copyfileobj(source, target)
                 saved += 1
@@ -413,7 +394,7 @@ def save_uploaded_photo_zip(file_storage, clear_old: bool = False) -> dict[str, 
         _photo_tokens.clear()
         _photo_hits.clear()
         _photo_blocked_until.clear()
-    return {"count": saved, "removed": removed, "photo_dir": str(photo_dir)}
+    return {"count": saved, "removed": removed, "photo_dir": str(PHOTO_DIR)}
 
 
 def load_students() -> dict[str, dict[str, str]]:
@@ -592,7 +573,7 @@ def photo(filename: str):
             abort(429)
         if not consume_photo_token(request.args.get("token"), photo_path.name):
             abort(404)
-        return send_from_directory(load_photo_dir(), photo_path.name, max_age=0)
+        return send_from_directory(PHOTO_DIR, photo_path.name, max_age=0)
     abort(404)
 
 
