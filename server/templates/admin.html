@@ -20,11 +20,13 @@
     <section class="student-import-panel">
       <div class="panel-header">
         <h2>學生資料更新</h2>
-        <a class="link-button" href="/api/admin/student-template">下載 Excel 範本</a>
+        <div class="record-actions">
+          <button id="upload-student-data" type="button">上傳更新學生資料</button>
+          <a class="link-button" href="/api/admin/student-template">下載學生資料excel格式</a>
+        </div>
       </div>
       <form id="student-upload-form" class="student-upload-form">
-        <input id="student-file" name="student_file" type="file" accept=".xlsx">
-        <button type="submit">上傳並更新 student_data</button>
+        <input id="student-file" name="student_file" type="file" accept=".xlsx" hidden>
       </form>
       <p class="panel-note">上傳後會覆寫後端的 student_data.txt，系統會先備份舊檔。</p>
     </section>
