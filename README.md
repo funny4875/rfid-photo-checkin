@@ -47,6 +47,8 @@ server/student_data_template.xlsx
 server.bat
 ```
 
+啟動時會先連到 GitHub 檢查是否有新版本；若有新版本，會跳出對話框詢問是否更新。
+
 預設服務：
 
 ```text
@@ -60,6 +62,8 @@ http://伺服器IP:5000
 ```bat
 client.bat
 ```
+
+啟動時會先連到 GitHub 檢查是否有新版本；若有新版本，會跳出對話框詢問是否更新。
 
 操作流程：
 

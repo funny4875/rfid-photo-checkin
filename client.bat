@@ -2,6 +2,10 @@
 chcp 65001 >nul
 setlocal EnableExtensions EnableDelayedExpansion
 
+cd /d "%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\check_update.ps1" -RepoRoot "%~dp0"
+if errorlevel 10 exit /b 0
+
 cd /d "%~dp0client" || (
   echo Cannot find client folder.
   pause
