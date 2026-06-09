@@ -342,6 +342,7 @@ scripts/check_update.ps1
 - 已是最新時，命令列需明確顯示目前已是最新版本。
 - 遠端 `VERSION` 需優先透過 GitHub Contents API 讀取，避免 raw 檔案快取造成版本落後。
 - `check_update.ps1` 需使用 Windows PowerShell 可穩定讀取的 UTF-8 BOM 編碼。
+- 更新腳本需先整理 `RepoRoot` 參數，避免多餘引號或空白造成路徑解析錯誤。
 - 優先使用 Git 檢查 `origin/main`。
 - 若本機落後且可 fast-forward，跳出對話框詢問是否更新。
 - 更新完成後提示重新執行啟動檔。

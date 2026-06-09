@@ -36,6 +36,14 @@ function Get-LocalVersion {
     return "0.0.0"
 }
 
+function Normalize-RepoRoot {
+    param([string]$Value)
+    if (-not $Value) {
+        return ""
+    }
+    return $Value.Trim().Trim('"')
+}
+
 function Get-RemoteVersion {
     param([string]$OwnerRepo, [string]$Branch)
     $versionUrl = "https://api.github.com/repos/$OwnerRepo/contents/VERSION?ref=$Branch"
@@ -237,6 +245,7 @@ try {
     if (-not $RepoRoot) {
         $RepoRoot = Split-Path -Parent $PSScriptRoot
     }
+    $RepoRoot = Normalize-RepoRoot $RepoRoot
     $RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 
     $gitDir = Join-Path $RepoRoot ".git"
@@ -250,4 +259,7 @@ try {
 catch {
     # Startup should not fail only because update checks are temporarily unavailable.
     Write-Host "GitHub update check skipped: $($_.Exception.Message)"
+    if ($_.InvocationInfo -and $_.InvocationInfo.PositionMessage) {
+        Write-Host $_.InvocationInfo.PositionMessage
+    }
 }
