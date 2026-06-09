@@ -28,6 +28,25 @@ function Show-Info($message, $title = "RFID Photo Check-in") {
     ) | Out-Null
 }
 
+function Get-LocalVersion {
+    $versionPath = Join-Path $RepoRoot "VERSION"
+    if (Test-Path -LiteralPath $versionPath) {
+        return (Get-Content -LiteralPath $versionPath -Raw).Trim()
+    }
+    return "0.0.0"
+}
+
+function Get-RemoteVersion {
+    param([string]$OwnerRepo, [string]$Branch)
+    $versionUrl = "https://raw.githubusercontent.com/$OwnerRepo/$Branch/VERSION"
+    try {
+        return (Invoke-RestMethod -Uri $versionUrl -Headers @{ "User-Agent" = "rfid-photo-checkin-updater" } -TimeoutSec 8).Trim()
+    }
+    catch {
+        return ""
+    }
+}
+
 function Test-GitAvailable {
     $null = Get-Command git -ErrorAction SilentlyContinue
     return $null -ne $false
@@ -48,6 +67,8 @@ function Update-WithGit {
             return $false
         }
 
+        $localVersion = Get-LocalVersion
+        $remoteVersion = Get-RemoteVersion -OwnerRepo $OwnerRepo -Branch $Branch
         $local = (git rev-parse HEAD).Trim()
         $remote = (git rev-parse "origin/$Branch").Trim()
         if ($local -eq $remote) {
@@ -60,7 +81,8 @@ function Update-WithGit {
             return $true
         }
 
-        $yes = Show-Question "GitHub 有新版，是否立即更新？`n`n更新會保留 student_data、照片、門禁紀錄與 client 設定。" "發現新版本"
+        $versionText = if ($remoteVersion) { "目前版本：$localVersion`nGitHub 版本：$remoteVersion`n`n" } else { "目前版本：$localVersion`n`n" }
+        $yes = Show-Question "GitHub 有新版，是否立即更新？`n`n$versionText更新會保留 student_data、照片、門禁紀錄與 client 設定。" "發現新版本"
         if (-not $yes) {
             return $true
         }
@@ -139,17 +161,19 @@ function Copy-UpdateFiles($sourceRoot, $targetRoot) {
 
 function Update-WithZip {
     $tempDir = $null
-    $apiUrl = "https://api.github.com/repos/$OwnerRepo/commits/$Branch"
-    $latest = Invoke-RestMethod -Uri $apiUrl -Headers @{ "User-Agent" = "rfid-photo-checkin-updater" } -TimeoutSec 8
-    $latestSha = [string]$latest.sha
+    $latestVersion = Get-RemoteVersion -OwnerRepo $OwnerRepo -Branch $Branch
+    if (-not $latestVersion) {
+        return
+    }
     $versionPath = Join-Path $RepoRoot ".github_version"
     $currentSha = if (Test-Path $versionPath) { (Get-Content $versionPath -Raw).Trim() } else { "" }
+    $localVersion = Get-LocalVersion
 
-    if ($currentSha -eq $latestSha) {
+    if ($currentSha -eq $latestVersion -or $localVersion -eq $latestVersion) {
         return
     }
 
-    $yes = Show-Question "GitHub 有新版，是否下載並更新？`n`n更新會保留 student_data、照片、門禁紀錄與 client 設定。" "發現新版本"
+    $yes = Show-Question "GitHub 有新版，是否下載並更新？`n`n目前版本：$localVersion`nGitHub 版本：$latestVersion`n`n更新會保留 student_data、照片、門禁紀錄與 client 設定。" "發現新版本"
     if (-not $yes) {
         return
     }
@@ -165,7 +189,7 @@ function Update-WithZip {
             throw "找不到下載後的專案資料夾"
         }
         Copy-UpdateFiles $sourceRoot.FullName $RepoRoot
-        Set-Content -Path $versionPath -Value $latestSha -Encoding UTF8
+        Set-Content -Path $versionPath -Value $latestVersion -Encoding UTF8
         Show-Info "已下載並更新到 GitHub 最新版本。請重新執行啟動檔。" "更新完成"
         exit 10
     }

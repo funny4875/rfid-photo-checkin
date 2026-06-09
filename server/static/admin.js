@@ -1,4 +1,5 @@
 const statusText = document.querySelector("#admin-status");
+const appVersion = document.querySelector("#app-version");
 const mergeButton = document.querySelector("#merge-now");
 const archiveButton = document.querySelector("#archive-now");
 const locationsList = document.querySelector("#locations-list");
@@ -79,6 +80,16 @@ async function loadAdminRecords() {
   renderList(document.querySelector("#merged-records"), data.merged || []);
 }
 
+async function loadVersion() {
+  try {
+    const response = await fetch("/api/version");
+    const data = await response.json();
+    appVersion.textContent = `v${data.version || "-"}`;
+  } catch (_error) {
+    appVersion.textContent = "v-";
+  }
+}
+
 async function postAction(url, doneText) {
   statusText.textContent = "執行中...";
   const response = await fetch(url, { method: "POST" });
@@ -129,3 +140,4 @@ studentFileInput.addEventListener("change", async () => {
   studentUploadForm.reset();
 });
 loadAdminRecords();
+loadVersion();

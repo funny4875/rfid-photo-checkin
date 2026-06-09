@@ -1,0 +1,13 @@
+# Release Notes
+
+## 1.1.0
+
+- 新增版本序號檔 `VERSION`。
+- 後台與 client GUI 顯示目前版本。
+- 啟動時的 GitHub 更新檢查會顯示本機版本與 GitHub 版本。
+- 學生資料 Excel 匯入格式移除 `身份証` 欄位。
+
+## 1.0.0
+
+- 初版 RFID 照片核對登記系統。
+- Flask 後端、Windows client GUI、ACR122U 讀卡、本機代理、場域設定、學生資料 Excel 匯入。

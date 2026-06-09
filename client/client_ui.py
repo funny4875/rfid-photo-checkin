@@ -16,12 +16,19 @@ import client_agent
 
 
 CONFIG_FILE = Path(__file__).resolve().parent / "config.txt"
+VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
 ICON_FILE = Path(__file__).resolve().parent / "assets" / "rfid_client_icon.ico"
 ICON_PNG = Path(__file__).resolve().parent / "assets" / "rfid_client_icon.png"
 LOCAL_URL = f"http://{client_agent.HOST}:{client_agent.PORT}/"
 
 server_thread: threading.Thread | None = None
 server_instance: ThreadingHTTPServer | None = None
+
+
+def app_version() -> str:
+    if VERSION_FILE.exists():
+        return VERSION_FILE.read_text(encoding="utf-8").strip()
+    return "0.0.0"
 
 
 def normalize_server_ip(value: str) -> str:
@@ -96,7 +103,7 @@ class ClientWindow:
         header.pack(fill="x")
         if self.icon_image:
             Label(header, image=self.icon_image, bg="#ffffff").grid(row=0, column=0, rowspan=2, padx=(0, 14), sticky="w")
-        ttk.Label(header, text="RFID 前端連線", style="Title.TLabel").grid(row=0, column=1, sticky="w")
+        ttk.Label(header, text=f"RFID 前端連線 v{app_version()}", style="Title.TLabel").grid(row=0, column=1, sticky="w")
         ttk.Label(header, text="選擇場域並連線到後端伺服器", style="Subtitle.TLabel").grid(row=1, column=1, sticky="w")
         header.columnconfigure(1, weight=1)
 

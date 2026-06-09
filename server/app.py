@@ -16,6 +16,8 @@ from openpyxl.utils import get_column_letter
 
 
 BASE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = BASE_DIR.parent
+VERSION_FILE = ROOT_DIR / "VERSION"
 STUDENT_FILE = BASE_DIR / "student_data.txt"
 BACKUP_DIR = BASE_DIR / "backups"
 LOCATION_FILE = BASE_DIR / "場域對應.txt"
@@ -31,6 +33,12 @@ _file_lock = threading.Lock()
 
 def today_str() -> str:
     return datetime.now().strftime("%Y%m%d")
+
+
+def app_version() -> str:
+    if VERSION_FILE.exists():
+        return VERSION_FILE.read_text(encoding="utf-8").strip()
+    return "0.0.0"
 
 
 def record_path(machine_id: str, date_text: str | None = None) -> Path:
@@ -420,6 +428,11 @@ def api_rfid_status():
 @app.get("/api/locations")
 def api_locations():
     return jsonify({"locations": load_locations()})
+
+
+@app.get("/api/version")
+def api_version():
+    return jsonify({"version": app_version()})
 
 
 @app.post("/api/admin/locations")

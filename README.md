@@ -2,6 +2,8 @@
 
 RFID Photo Check-in 是一套校園門禁/出勤登記系統，支援 ACR122U 讀卡機、照片核對、場域別名管理與每日門禁紀錄整併。
 
+目前版本：`1.1.0`
+
 ## 功能
 
 - 後端 Flask server 提供前台、後台、照片與 API。
@@ -20,6 +22,7 @@ server/        Flask 後端、前台/後台網頁、API
 client.bat     啟動前端 GUI
 server.bat     啟動後端 server
 DEPLOY.md      部署流程
+VERSION        版本序號
 ```
 
 ## 不放入 Git 的資料
