@@ -12,7 +12,7 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-echo Starting RFID backend server on http://0.0.0.0:5000
-python app.py
+echo Starting RFID backend server GUI...
+python server_gui.py
 pause
 endlocal

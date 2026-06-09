@@ -2,7 +2,7 @@
 
 RFID Photo Check-in 是一套校園門禁/出勤登記系統，支援 ACR122U 讀卡機、照片核對、場域別名管理與每日門禁紀錄整併。
 
-目前版本：`1.1.4`
+目前版本：`1.1.5`
 
 ## 功能
 
@@ -20,7 +20,7 @@ RFID Photo Check-in 是一套校園門禁/出勤登記系統，支援 ACR122U �
 client/        前端 ACR122U 讀卡代理與 GUI
 server/        Flask 後端、前台/後台網頁、API
 client.bat     啟動前端 GUI
-server.bat     啟動後端 server
+server.bat     啟動後端 GUI
 DEPLOY.md      部署流程
 VERSION        版本序號
 ```
@@ -52,11 +52,35 @@ server.bat
 
 啟動時會先連到 GitHub 檢查是否有新版本；若有新版本，會跳出對話框詢問是否更新。
 
+開啟後會出現「門禁網頁伺服器」視窗，按下「啟動」開始提供網頁服務，按下「停止」關閉服務。
+
 預設服務：
 
 ```text
 http://伺服器IP:5000
 ```
+
+## 照片資料夾
+
+後端照片資料夾設定檔：
+
+```text
+server/照片資料夾.txt
+```
+
+內容可以是相對於 `server` 的路徑：
+
+```text
+ccsh_data
+```
+
+也可以是絕對路徑：
+
+```text
+D:\rfid_photos\ccsh_data
+```
+
+修改後請在「門禁網頁伺服器」視窗按「停止」，再按「啟動」。
 
 ## 前端啟動
 
