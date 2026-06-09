@@ -7,7 +7,7 @@ import shutil
 import threading
 import time
 from datetime import datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from flask import Flask, abort, jsonify, render_template, request, send_file, send_from_directory
 from openpyxl import Workbook, load_workbook
@@ -28,6 +28,7 @@ NO_PICTURE = "noPicture.jpg"
 VALID_DIRECTIONS = {"刷進", "刷出"}
 RECORD_RE = re.compile(r"^門禁記錄(?:\d+)?_(\d{8})\.txt$")
 STUDENT_HEADERS = ["編號", "UID", "學號", "座號", "班級", "姓名"]
+PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -403,11 +404,21 @@ def admin():
 
 @app.route("/photo/<path:filename>")
 def photo(filename: str):
-    if filename.startswith("ccsh_data/"):
-        return send_from_directory(BASE_DIR, filename)
     if filename == "noUID.jpg":
         return send_from_directory(BASE_DIR, "noUID.jpg")
-    return send_from_directory(BASE_DIR, NO_PICTURE)
+    if filename == NO_PICTURE:
+        return send_from_directory(BASE_DIR, NO_PICTURE)
+
+    photo_path = PurePosixPath(filename.replace("\\", "/"))
+    if (
+        len(photo_path.parts) == 2
+        and photo_path.parts[0] == "ccsh_data"
+        and ".." not in photo_path.parts
+        and photo_path.suffix.lower() in PHOTO_EXTENSIONS
+        and not photo_path.name.lower().startswith("student_data")
+    ):
+        return send_from_directory(PHOTO_DIR, photo_path.name)
+    abort(404)
 
 
 @app.route("/favicon.ico")
