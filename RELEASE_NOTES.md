@@ -1,5 +1,10 @@
 # Release Notes
 
+## 1.1.8
+
+- 啟動時的 GitHub 更新檢查會在命令列顯示檢查狀態、目前版本、GitHub 版本與是否為最新版本。
+- `scripts/check_update.ps1` 改為 Windows PowerShell 可穩定讀取的 UTF-8 BOM 編碼。
+
 ## 1.1.7
 
 - 取消照片資料夾可設定功能，照片固定使用 `server/ccsh_data`。

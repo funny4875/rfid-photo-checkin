@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$RepoRoot,
     [string]$RepoUrl = "https://github.com/funny4875/rfid-photo-checkin.git",
     [string]$OwnerRepo = "funny4875/rfid-photo-checkin",
@@ -47,6 +47,23 @@ function Get-RemoteVersion {
     }
 }
 
+function Write-UpdateHeader {
+    param([string]$LocalVersion)
+    Write-Host "連至 GitHub 檢查版本是否為最新..."
+    Write-Host ("GitHub repo: https://github.com/" + $OwnerRepo + "/")
+    Write-Host "目前版本為：$LocalVersion"
+}
+
+function Write-RemoteVersion {
+    param([string]$RemoteVersion)
+    if ($RemoteVersion) {
+        Write-Host "GitHub 版本為：$RemoteVersion"
+    }
+    else {
+        Write-Host "GitHub 版本為：無法讀取"
+    }
+}
+
 function Test-GitAvailable {
     $null = Get-Command git -ErrorAction SilentlyContinue
     return $null -ne $false
@@ -57,6 +74,9 @@ function Update-WithGit {
     $protectedFiles = @("server/場域對應.txt")
     $protectedBackupDir = Join-Path ([System.IO.Path]::GetTempPath()) ("rfid-photo-checkin-protected-" + [guid]::NewGuid().ToString("N"))
     try {
+        $localVersion = Get-LocalVersion
+        Write-UpdateHeader -LocalVersion $localVersion
+
         git remote get-url origin 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             git remote add origin $RepoUrl
@@ -64,14 +84,21 @@ function Update-WithGit {
 
         git fetch origin $Branch --quiet
         if ($LASTEXITCODE -ne 0) {
+            Write-Host "GitHub 檢查結果：git 讀取失敗，改用下載檢查。"
             return $false
         }
 
-        $localVersion = Get-LocalVersion
         $remoteVersion = Get-RemoteVersion -OwnerRepo $OwnerRepo -Branch $Branch
+        Write-RemoteVersion -RemoteVersion $remoteVersion
         $local = (git rev-parse HEAD).Trim()
         $remote = (git rev-parse "origin/$Branch").Trim()
         if ($local -eq $remote) {
+            if ($remoteVersion -and $localVersion -ne $remoteVersion) {
+                Write-Host "GitHub 檢查結果：程式碼已同步，但本機版本檔與 GitHub 版本不一致。"
+            }
+            else {
+                Write-Host "GitHub 檢查結果：目前已是最新版本。"
+            }
             return $true
         }
 
@@ -161,15 +188,19 @@ function Copy-UpdateFiles($sourceRoot, $targetRoot) {
 
 function Update-WithZip {
     $tempDir = $null
+    $localVersion = Get-LocalVersion
+    Write-UpdateHeader -LocalVersion $localVersion
     $latestVersion = Get-RemoteVersion -OwnerRepo $OwnerRepo -Branch $Branch
+    Write-RemoteVersion -RemoteVersion $latestVersion
     if (-not $latestVersion) {
+        Write-Host "GitHub 檢查結果：無法讀取 GitHub 版本，略過更新。"
         return
     }
     $versionPath = Join-Path $RepoRoot ".github_version"
     $currentSha = if (Test-Path $versionPath) { (Get-Content $versionPath -Raw).Trim() } else { "" }
-    $localVersion = Get-LocalVersion
 
     if ($currentSha -eq $latestVersion -or $localVersion -eq $latestVersion) {
+        Write-Host "GitHub 檢查結果：目前已是最新版本。"
         return
     }
 
