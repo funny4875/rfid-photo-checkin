@@ -38,9 +38,11 @@ function Get-LocalVersion {
 
 function Get-RemoteVersion {
     param([string]$OwnerRepo, [string]$Branch)
-    $versionUrl = "https://raw.githubusercontent.com/$OwnerRepo/$Branch/VERSION"
+    $versionUrl = "https://api.github.com/repos/$OwnerRepo/contents/VERSION?ref=$Branch"
     try {
-        return (Invoke-RestMethod -Uri $versionUrl -Headers @{ "User-Agent" = "rfid-photo-checkin-updater" } -TimeoutSec 8).Trim()
+        $response = Invoke-RestMethod -Uri $versionUrl -Headers @{ "User-Agent" = "rfid-photo-checkin-updater"; "Cache-Control" = "no-cache" } -TimeoutSec 8
+        $content = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(($response.content -replace "\s", "")))
+        return $content.Trim()
     }
     catch {
         return ""

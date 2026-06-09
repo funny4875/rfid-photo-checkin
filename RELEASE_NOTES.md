@@ -1,5 +1,9 @@
 # Release Notes
 
+## 1.1.9
+
+- GitHub 版本讀取改用 GitHub Contents API，避免 raw 檔案快取造成版本顯示落後。
+
 ## 1.1.8
 
 - 啟動時的 GitHub 更新檢查會在命令列顯示檢查狀態、目前版本、GitHub 版本與是否為最新版本。
