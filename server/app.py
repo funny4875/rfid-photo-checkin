@@ -1,0 +1,382 @@
+from __future__ import annotations
+
+import csv
+import re
+import shutil
+import threading
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
+
+from flask import Flask, abort, jsonify, render_template, request, send_from_directory
+
+
+BASE_DIR = Path(__file__).resolve().parent
+STUDENT_FILE = BASE_DIR / "student_data.txt"
+LOCATION_FILE = BASE_DIR / "場域對應.txt"
+PHOTO_DIR = BASE_DIR / "ccsh_data"
+NO_PICTURE = "noPicture.jpg"
+VALID_DIRECTIONS = {"刷進", "刷出"}
+RECORD_RE = re.compile(r"^門禁記錄(?:\d+)?_(\d{8})\.txt$")
+
+app = Flask(__name__)
+_file_lock = threading.Lock()
+
+
+def today_str() -> str:
+    return datetime.now().strftime("%Y%m%d")
+
+
+def record_path(machine_id: str, date_text: str | None = None) -> Path:
+    return BASE_DIR / f"門禁記錄{machine_id}_{date_text or today_str()}.txt"
+
+
+def merged_record_path(date_text: str | None = None) -> Path:
+    return BASE_DIR / f"門禁記錄_{date_text or today_str()}.txt"
+
+
+def ensure_location_file() -> None:
+    if LOCATION_FILE.exists():
+        return
+    LOCATION_FILE.write_text("0\t警衛室\n1\t教官室\n", encoding="utf-8")
+
+
+def load_locations() -> list[dict[str, str]]:
+    ensure_location_file()
+    locations: list[dict[str, str]] = []
+    for line in LOCATION_FILE.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("\t", 1)
+        machine_id = parts[0].strip()
+        label = (parts[1] if len(parts) > 1 else f"機台{machine_id}").strip()
+        if machine_id.isdigit() and label:
+            locations.append({"machine_id": machine_id, "label": label})
+    if not locations:
+        locations = [{"machine_id": "0", "label": "警衛室"}, {"machine_id": "1", "label": "教官室"}]
+        save_locations(locations)
+    return sorted(locations, key=lambda item: int(item["machine_id"]))
+
+
+def save_locations(locations: list[dict[str, str]]) -> None:
+    seen: set[str] = set()
+    normalized: list[dict[str, str]] = []
+    for location in locations:
+        machine_id = str(location.get("machine_id") or "").strip()
+        label = str(location.get("label") or "").strip()
+        if not machine_id.isdigit() or not label or machine_id in seen:
+            continue
+        seen.add(machine_id)
+        normalized.append({"machine_id": machine_id, "label": label})
+    if not normalized:
+        raise ValueError("至少需要一個場域，且機台編號需為數字")
+    normalized.sort(key=lambda item: int(item["machine_id"]))
+    text = "".join(f"{item['machine_id']}\t{item['label']}\n" for item in normalized)
+    with _file_lock:
+        LOCATION_FILE.write_text(text, encoding="utf-8")
+
+
+def valid_machine_ids() -> set[str]:
+    return {location["machine_id"] for location in load_locations()}
+
+
+def format_seat(value: str) -> str:
+    value = (value or "").strip()
+    if not value:
+        return ""
+    return value if value.endswith("號") else f"{value}號"
+
+
+def display_uid(value: str) -> str:
+    value = (value or "").strip()
+    return "?" if not value or value == "?????:?????" else value
+
+
+def photo_filename(student_id: str) -> str:
+    for suffix in (".jpg", ".JPG"):
+        candidate = PHOTO_DIR / f"{student_id}{suffix}"
+        if candidate.exists():
+            return f"ccsh_data/{candidate.name}"
+    return NO_PICTURE
+
+
+def photo_url(student_id: str) -> str:
+    return f"/photo/{photo_filename(student_id)}"
+
+
+def load_students() -> dict[str, dict[str, str]]:
+    students: dict[str, dict[str, str]] = {}
+    if not STUDENT_FILE.exists():
+        return students
+
+    with STUDENT_FILE.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        for row in reader:
+            student_id = (row.get("學號") or "").strip()
+            if not student_id:
+                continue
+            students[student_id] = {
+                "number": (row.get("編號") or "").strip(),
+                "uid": (row.get("UID") or "").strip(),
+                "record_uid": display_uid(row.get("UID") or ""),
+                "student_id": student_id,
+                "seat": format_seat(row.get("座號") or ""),
+                "class_name": (row.get("班級") or "").strip(),
+                "name": (row.get("姓名") or "").strip(),
+                "identity": (row.get("身份証") or "").strip(),
+                "photo_url": photo_url(student_id),
+            }
+    return students
+
+
+def load_students_by_uid() -> dict[str, dict[str, str]]:
+    return {
+        student["uid"]: student
+        for student in load_students().values()
+        if student.get("uid") and student.get("uid") != "?????:?????"
+    }
+
+
+def get_student_or_none(student_id: str) -> dict[str, str] | None:
+    return load_students().get((student_id or "").strip())
+
+
+def get_student_by_uid_or_none(uid: str) -> dict[str, str] | None:
+    return load_students_by_uid().get((uid or "").strip())
+
+
+def parse_record(line: str, index: int) -> dict[str, str | int]:
+    parts = line.rstrip("\n").split("\t")
+    while len(parts) < 7:
+        parts.append("")
+    return {
+        "index": index,
+        "raw": line.rstrip("\n"),
+        "time": parts[0],
+        "uid": parts[1],
+        "student_id": parts[2],
+        "class_name": parts[3],
+        "seat": parts[4],
+        "name": parts[5],
+        "direction": parts[6],
+    }
+
+
+def read_record_lines(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+    return path.read_text(encoding="utf-8").splitlines()
+
+
+def records_for_machine(machine_id: str, date_text: str | None = None) -> list[dict[str, str | int]]:
+    return [parse_record(line, index) for index, line in enumerate(read_record_lines(record_path(machine_id, date_text)))]
+
+
+def write_record(machine_id: str, student: dict[str, str], direction: str) -> dict[str, str | int]:
+    now = datetime.now().strftime("%H:%M:%S")
+    line = "\t".join(
+        [
+            now,
+            student["record_uid"],
+            student["student_id"],
+            student["class_name"],
+            student["seat"],
+            student["name"],
+            direction,
+        ]
+    )
+    path = record_path(machine_id)
+    with _file_lock:
+        with path.open("a", encoding="utf-8", newline="") as handle:
+            handle.write(line + "\n")
+        index = len(read_record_lines(path)) - 1
+    return parse_record(line, index)
+
+
+def merge_today_records(date_text: str | None = None) -> dict[str, str | int]:
+    date_value = date_text or today_str()
+    machine_paths = sorted(BASE_DIR.glob(f"門禁記錄[0-9]*_{date_value}.txt"))
+    lines: list[str] = []
+    for path in machine_paths:
+        lines.extend(read_record_lines(path))
+
+    lines.sort(key=lambda line: line.split("\t", 1)[0] if line else "")
+    output_path = merged_record_path(date_value)
+    with _file_lock:
+        output_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    return {"file": output_path.name, "count": len(lines)}
+
+
+def archive_old_records(days: int = 7) -> dict[str, object]:
+    cutoff = datetime.now().date() - timedelta(days=days)
+    moved: list[str] = []
+    with _file_lock:
+        for path in BASE_DIR.glob("門禁記錄*.txt"):
+            match = RECORD_RE.match(path.name)
+            if not match:
+                continue
+            record_date = datetime.strptime(match.group(1), "%Y%m%d").date()
+            if record_date > cutoff:
+                continue
+            year_dir = BASE_DIR / str(record_date.year)
+            year_dir.mkdir(exist_ok=True)
+            destination = year_dir / path.name
+            shutil.move(str(path), str(destination))
+            moved.append(path.name)
+    return {"moved": moved, "count": len(moved)}
+
+
+def delete_today_record(machine_id: str, index: int) -> dict[str, object]:
+    path = record_path(machine_id)
+    with _file_lock:
+        lines = read_record_lines(path)
+        if index < 0 or index >= len(lines):
+            abort(404, description="找不到選取的今日記錄")
+        removed = parse_record(lines.pop(index), index)
+        path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    return {"deleted": removed, "records": records_for_machine(machine_id)}
+
+
+def scheduler_loop() -> None:
+    last_merge_date = ""
+    last_archive_date = ""
+    while True:
+        now = datetime.now()
+        current_date = now.strftime("%Y%m%d")
+        if now.strftime("%H:%M") == "12:10" and last_merge_date != current_date:
+            merge_today_records(current_date)
+            last_merge_date = current_date
+        if now.strftime("%H:%M") == "00:15" and last_archive_date != current_date:
+            archive_old_records()
+            last_archive_date = current_date
+        time.sleep(30)
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/admin")
+def admin():
+    return render_template("admin.html")
+
+
+@app.route("/photo/<path:filename>")
+def photo(filename: str):
+    if filename.startswith("ccsh_data/"):
+        return send_from_directory(BASE_DIR, filename)
+    if filename == "noUID.jpg":
+        return send_from_directory(BASE_DIR, "noUID.jpg")
+    return send_from_directory(BASE_DIR, NO_PICTURE)
+
+
+@app.route("/favicon.ico")
+def favicon():
+    return send_from_directory(BASE_DIR / "static", "favicon.ico")
+
+
+@app.get("/api/student/<student_id>")
+def api_student(student_id: str):
+    student = get_student_or_none(student_id)
+    if not student:
+        return jsonify({"error": "查無此學號"}), 404
+    return jsonify({"student": student})
+
+
+@app.post("/api/checkin")
+def api_checkin():
+    payload = request.get_json(silent=True) or request.form
+    student_id = (payload.get("student_id") or "").strip()
+    machine_id = str(payload.get("machine_id") or "0")
+    direction = payload.get("direction") or "刷進"
+    if machine_id not in valid_machine_ids() or direction not in VALID_DIRECTIONS:
+        return jsonify({"error": "機台或刷進刷出選項錯誤"}), 400
+    student = get_student_or_none(student_id)
+    if not student:
+        return jsonify({"error": "查無此學號"}), 404
+    record = write_record(machine_id, student, direction)
+    return jsonify({"student": student, "record": record, "records": records_for_machine(machine_id)})
+
+
+@app.post("/api/checkin_uid")
+def api_checkin_uid():
+    payload = request.get_json(silent=True) or request.form
+    uid = (payload.get("uid") or "").strip()
+    machine_id = str(payload.get("machine_id") or "0")
+    direction = payload.get("direction") or "刷進"
+    if machine_id not in valid_machine_ids() or direction not in VALID_DIRECTIONS:
+        return jsonify({"error": "機台或刷進刷出選項錯誤"}), 400
+    if not uid:
+        return jsonify({"error": "沒有收到 UID"}), 400
+    student = get_student_by_uid_or_none(uid)
+    if not student:
+        return jsonify({"error": "UID 未建檔", "uid": uid, "records": records_for_machine(machine_id)}), 404
+    record = write_record(machine_id, student, direction)
+    return jsonify({"student": student, "record": record, "records": records_for_machine(machine_id), "uid": uid})
+
+
+@app.get("/api/rfid/status")
+def api_rfid_status():
+    return jsonify({"enabled": False, "error": "RFID 讀卡程式請由前端主機 client.bat 啟動"})
+
+
+@app.get("/api/locations")
+def api_locations():
+    return jsonify({"locations": load_locations()})
+
+
+@app.post("/api/admin/locations")
+def api_admin_locations():
+    payload = request.get_json(silent=True) or {}
+    locations = payload.get("locations") or []
+    if not isinstance(locations, list):
+        return jsonify({"error": "場域資料格式錯誤"}), 400
+    try:
+        save_locations(locations)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"locations": load_locations()})
+
+
+@app.get("/api/records")
+def api_records():
+    machine_id = request.args.get("machine_id", "0")
+    if machine_id not in valid_machine_ids():
+        return jsonify({"error": "機台錯誤"}), 400
+    return jsonify({"records": records_for_machine(machine_id)})
+
+
+@app.delete("/api/records/<machine_id>/<int:index>")
+def api_delete_record(machine_id: str, index: int):
+    if machine_id not in valid_machine_ids():
+        return jsonify({"error": "機台錯誤"}), 400
+    return jsonify(delete_today_record(machine_id, index))
+
+
+@app.get("/api/admin/records")
+def api_admin_records():
+    locations = load_locations()
+    return jsonify(
+        {
+            "locations": locations,
+            "machines": {location["machine_id"]: records_for_machine(location["machine_id"]) for location in locations},
+            "merged": [parse_record(line, index) for index, line in enumerate(read_record_lines(merged_record_path()))],
+        }
+    )
+
+
+@app.post("/api/admin/merge")
+def api_admin_merge():
+    return jsonify(merge_today_records())
+
+
+@app.post("/api/admin/archive")
+def api_admin_archive():
+    return jsonify(archive_old_records())
+
+
+if __name__ == "__main__":
+    threading.Thread(target=scheduler_loop, daemon=True).start()
+    app.run(host="0.0.0.0", port=5000, debug=False)

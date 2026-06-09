@@ -1,0 +1,25 @@
+# Personal/student data
+server/student_data.txt
+server/ccsh_data/
+
+# Attendance records and generated local files
+server/門禁記錄*.txt
+server/*.log
+server/preview.*
+server/rfid_frontend_check.png
+rfid_fullscreen_preview*.png
+
+# Local client configuration
+client/config.txt
+
+# Python cache
+__pycache__/
+*/__pycache__/
+*.py[cod]
+
+# OS/editor files
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
+

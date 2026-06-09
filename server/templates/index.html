@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>出勤記錄系統</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="station-panel">
+      <div class="topbar">
+        <h1>出勤記錄系統</h1>
+        <a class="link-button" href="/admin">後台</a>
+      </div>
+
+      <form id="checkin-form" class="checkin-form">
+        <input id="student-id" name="student_id" inputmode="numeric" autocomplete="off" autofocus placeholder="請輸入學號">
+        <div id="rfid-status" class="rfid-status" aria-live="polite">
+          <span class="rfid-dot"></span>
+          <span id="rfid-status-text">RFID 讀卡機連線中</span>
+        </div>
+        <div class="controls">
+          <div class="segmented" role="radiogroup" aria-label="刷進刷出">
+            <label><input type="radio" name="direction" value="刷進" checked><span>刷進</span></label>
+            <label><input type="radio" name="direction" value="刷出"><span>刷出</span></label>
+          </div>
+          <select id="machine-id" aria-label="機台">
+            <option value="0">機台0</option>
+            <option value="1">機台1</option>
+          </select>
+        </div>
+      </form>
+
+      <div class="student-layout">
+        <div class="photo-frame">
+          <img id="student-photo" src="/photo/noPicture.jpg" alt="學生照片">
+        </div>
+        <dl id="student-info" class="student-info">
+          <div><dt>學號</dt><dd>-</dd></div>
+          <div><dt>班級</dt><dd>-</dd></div>
+          <div><dt>座號</dt><dd>-</dd></div>
+          <div><dt>姓名</dt><dd>-</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <section class="records-panel">
+      <div class="panel-header">
+        <h2>今日記錄</h2>
+        <div class="record-actions">
+          <button id="toggle-records" type="button" aria-pressed="false">放大</button>
+          <button id="delete-record" class="danger-button" type="button" disabled>刪除</button>
+        </div>
+      </div>
+      <div id="records-list" class="records-list" tabindex="0"></div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RFID 後台</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="admin-shell">
+    <div class="topbar">
+      <h1>RFID 後台</h1>
+      <a class="link-button" href="/">前台</a>
+    </div>
+    <div class="admin-actions">
+      <button id="merge-now" type="button">整併今日記錄</button>
+      <button id="archive-now" type="button">清理歸檔</button>
+      <span id="admin-status"></span>
+    </div>
+    <section class="locations-panel">
+      <div class="panel-header">
+        <h2>場域設定</h2>
+        <div class="record-actions">
+          <button id="add-location" type="button">新增場域</button>
+          <button id="save-locations" type="button">儲存場域</button>
+        </div>
+      </div>
+      <div id="locations-list" class="locations-list"></div>
+    </section>
+    <section class="admin-grid">
+      <article class="merged">
+        <h2>今日整併</h2>
+        <div id="merged-records" class="records-list compact"></div>
+      </article>
+    </section>
+  </main>
+  <script src="/static/admin.js"></script>
+</body>
+</html>
