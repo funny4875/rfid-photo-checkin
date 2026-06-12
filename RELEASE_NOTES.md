@@ -1,5 +1,10 @@
 # Release Notes
 
+## 1.1.16
+
+- 更新檢查不再使用舊版 PowerShell 不支援的 `Get-Content -Raw`。
+- 更新訊息改用容錯輸出，主控台緩衝區異常時不再阻止 client 或 server 啟動。
+
 ## 1.1.15
 
 - ZIP fallback 更新不再使用舊版 .NET Framework 缺少的 `Path.GetRelativePath()`。

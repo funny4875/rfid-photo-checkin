@@ -10,6 +10,19 @@ $utf8Output = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $utf8Output
 $OutputEncoding = $utf8Output
 
+function Write-Status($message) {
+    try {
+        [Console]::WriteLine([string]$message)
+    }
+    catch {
+        # A broken or detached Windows console must not prevent app startup.
+    }
+}
+
+function Read-TextFile($path) {
+    return [System.IO.File]::ReadAllText($path).Trim()
+}
+
 function Show-Question($message, $title) {
     Add-Type -AssemblyName PresentationFramework
     $result = [System.Windows.MessageBox]::Show(
@@ -34,7 +47,7 @@ function Show-Info($message, $title = "RFID Photo Check-in") {
 function Get-LocalVersion {
     $versionPath = Join-Path $RepoRoot "VERSION"
     if (Test-Path -LiteralPath $versionPath) {
-        return (Get-Content -LiteralPath $versionPath -Raw).Trim()
+        return Read-TextFile $versionPath
     }
     return "0.0.0"
 }
@@ -62,18 +75,18 @@ function Get-RemoteVersion {
 
 function Write-UpdateHeader {
     param([string]$LocalVersion)
-    Write-Host "連至 GitHub 檢查版本是否為最新..."
-    Write-Host ("GitHub repo: https://github.com/" + $OwnerRepo + "/")
-    Write-Host "目前版本為：$LocalVersion"
+    Write-Status "連至 GitHub 檢查版本是否為最新..."
+    Write-Status ("GitHub repo: https://github.com/" + $OwnerRepo + "/")
+    Write-Status "目前版本為：$LocalVersion"
 }
 
 function Write-RemoteVersion {
     param([string]$RemoteVersion)
     if ($RemoteVersion) {
-        Write-Host "GitHub 版本為：$RemoteVersion"
+        Write-Status "GitHub 版本為：$RemoteVersion"
     }
     else {
-        Write-Host "GitHub 版本為：無法讀取"
+        Write-Status "GitHub 版本為：無法讀取"
     }
 }
 
@@ -97,7 +110,7 @@ function Update-WithGit {
 
         git fetch origin $Branch --quiet
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "GitHub 檢查結果：git 讀取失敗，改用下載檢查。"
+            Write-Status "GitHub 檢查結果：git 讀取失敗，改用下載檢查。"
             return $false
         }
 
@@ -107,10 +120,10 @@ function Update-WithGit {
         $remote = (git rev-parse "origin/$Branch").Trim()
         if ($local -eq $remote) {
             if ($remoteVersion -and $localVersion -ne $remoteVersion) {
-                Write-Host "GitHub 檢查結果：程式碼已同步，但本機版本檔與 GitHub 版本不一致。"
+                Write-Status "GitHub 檢查結果：程式碼已同步，但本機版本檔與 GitHub 版本不一致。"
             }
             else {
-                Write-Host "GitHub 檢查結果：目前已是最新版本。"
+                Write-Status "GitHub 檢查結果：目前已是最新版本。"
             }
             return $true
         }
@@ -217,14 +230,14 @@ function Update-WithZip {
     $latestVersion = Get-RemoteVersion -OwnerRepo $OwnerRepo -Branch $Branch
     Write-RemoteVersion -RemoteVersion $latestVersion
     if (-not $latestVersion) {
-        Write-Host "GitHub 檢查結果：無法讀取 GitHub 版本，略過更新。"
+        Write-Status "GitHub 檢查結果：無法讀取 GitHub 版本，略過更新。"
         return
     }
     $versionPath = Join-Path $RepoRoot ".github_version"
-    $currentSha = if (Test-Path $versionPath) { (Get-Content $versionPath -Raw).Trim() } else { "" }
+    $currentSha = if (Test-Path $versionPath) { Read-TextFile $versionPath } else { "" }
 
     if ($currentSha -eq $latestVersion -or $localVersion -eq $latestVersion) {
-        Write-Host "GitHub 檢查結果：目前已是最新版本。"
+        Write-Status "GitHub 檢查結果：目前已是最新版本。"
         return
     }
 
@@ -272,8 +285,8 @@ try {
 }
 catch {
     # Startup should not fail only because update checks are temporarily unavailable.
-    Write-Host "GitHub update check skipped: $($_.Exception.Message)"
+    Write-Status "GitHub update check skipped: $($_.Exception.Message)"
     if ($_.InvocationInfo -and $_.InvocationInfo.PositionMessage) {
-        Write-Host $_.InvocationInfo.PositionMessage
+        Write-Status $_.InvocationInfo.PositionMessage
     }
 }

@@ -354,6 +354,7 @@ scripts/check_update.ps1
 - `check_update.ps1` 需使用 Windows PowerShell 可穩定讀取的 UTF-8 BOM 編碼。
 - 更新腳本需先整理 `RepoRoot` 參數，避免多餘引號或空白造成路徑解析錯誤。
 - ZIP fallback 更新需相容 Windows PowerShell 5.1 / .NET Framework，不得依賴 `Path.GetRelativePath()`。
+- 版本檔讀取不得依賴 `Get-Content -Raw`，主控台輸出失敗不得阻止 client 或 server 啟動。
 - 優先使用 Git 檢查 `origin/main`。
 - 若本機落後且可 fast-forward，跳出對話框詢問是否更新。
 - 更新完成後提示重新執行啟動檔。
