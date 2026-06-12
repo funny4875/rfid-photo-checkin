@@ -89,7 +89,10 @@ class ClientWindow:
         self.server_ip = StringVar(value=config["server_ip"])
         self.machine_label = StringVar(value="")
         self.status = StringVar(value="尚未連線")
+        self.server_status = StringVar(value="尚未連線伺服器")
         self.locations: list[dict[str, str]] = []
+        self.connected_server_ip = ""
+        self.connection_serial = 0
         self.config_machine_id = config["machine_id"]
         self.default_server_ip = config["server_ip"]
         self.default_ip_prompted = False
@@ -125,12 +128,29 @@ class ClientWindow:
         ttk.Label(form, text="伺服器 IP", style="Field.TLabel").grid(row=1, column=0, sticky="w", pady=(0, 12))
         self.server_entry = Entry(form, textvariable=self.server_ip, relief="solid", bd=1, font=("Microsoft JhengHei UI", 12))
         self.server_entry.grid(row=1, column=1, sticky="ew", pady=(0, 12), ipady=6)
-        self.server_entry.bind("<FocusOut>", lambda _event: self.load_locations())
-        self.server_entry.bind("<Return>", lambda _event: self.load_locations())
+        self.server_entry.bind("<Return>", lambda _event: self.begin_server_connection())
 
-        self.connect_button = ttk.Button(form, text="網頁連線", command=self.connect, style="Primary.TButton")
-        self.connect_button.grid(row=2, column=1, sticky="e", ipadx=16, ipady=4)
+        button_row = ttk.Frame(form, style="Card.TFrame")
+        button_row.grid(row=2, column=1, sticky="e")
+        self.server_connect_button = ttk.Button(
+            button_row,
+            text="伺服器連線",
+            command=self.begin_server_connection,
+        )
+        self.server_connect_button.pack(side="left", padx=(0, 10), ipadx=10, ipady=4)
+        self.connect_button = ttk.Button(
+            button_row,
+            text="網頁連線",
+            command=self.connect,
+            style="Primary.TButton",
+            state="disabled",
+        )
+        self.connect_button.pack(side="left", ipadx=16, ipady=4)
+        ttk.Label(form, textvariable=self.server_status, style="ServerStatus.TLabel").grid(
+            row=3, column=1, sticky="w", pady=(10, 0)
+        )
         form.columnconfigure(1, weight=1)
+        self.server_ip.trace_add("write", self.on_server_ip_changed)
 
         status_card = ttk.Frame(shell, style="Status.TFrame", padding=(14, 10))
         status_card.pack(fill="x", pady=(14, 0))
@@ -146,7 +166,8 @@ class ClientWindow:
         self.log_box.pack(fill="both", expand=True)
 
         self.root.after(1000, self.refresh_status)
-        self.root.after(300, lambda: self.load_locations(check_default=True))
+        if self.default_server_ip:
+            self.root.after(300, lambda: self.begin_server_connection(check_default=True))
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
     def configure_styles(self) -> None:
@@ -159,6 +180,7 @@ class ClientWindow:
         style.configure("Subtitle.TLabel", background="#ffffff", foreground="#60717e", font=("Microsoft JhengHei UI", 10))
         style.configure("Section.TLabel", background="#ffffff", foreground="#17323b", font=("Microsoft JhengHei UI", 11, "bold"))
         style.configure("Field.TLabel", background="#ffffff", foreground="#526575", font=("Microsoft JhengHei UI", 11, "bold"))
+        style.configure("ServerStatus.TLabel", background="#ffffff", foreground="#526575", font=("Microsoft JhengHei UI", 10))
         style.configure("StatusName.TLabel", background="#e8f5f1", foreground="#0f6d62", font=("Microsoft JhengHei UI", 11, "bold"))
         style.configure("StatusValue.TLabel", background="#e8f5f1", foreground="#17323b", font=("Microsoft JhengHei UI", 10))
         style.configure("Field.TCombobox", fieldbackground="#ffffff", background="#ffffff", foreground="#17323b", padding=6)
@@ -176,12 +198,8 @@ class ClientWindow:
 
     def connect(self) -> None:
         server_ip = normalize_server_ip(self.server_ip.get())
-        if not server_ip:
-            messagebox.showerror("缺少伺服器IP", "請輸入伺服器IP")
-            return
-        if not self.locations and not self.load_locations():
-            messagebox.showerror("伺服器連線失敗", "連線不上伺服器，請重新輸入伺服器 IP。")
-            self.server_entry.focus_set()
+        if not server_ip or server_ip != self.connected_server_ip or not self.locations:
+            messagebox.showerror("尚未連線伺服器", "請先按下「伺服器連線」，成功後再開啟網頁。")
             return
         machine_id = self.selected_machine_id()
         if not machine_id:
@@ -199,26 +217,77 @@ class ClientWindow:
         self.status.set(f"已連線：{client_agent.BACKEND_BASE_URL}")
         self.log(f"開啟網頁：{target}")
 
-    def load_locations(self, check_default: bool = False) -> bool:
+    def on_server_ip_changed(self, *_args: object) -> None:
+        server_ip = normalize_server_ip(self.server_ip.get())
+        if server_ip == self.connected_server_ip:
+            return
+        self.connection_serial += 1
+        self.connected_server_ip = ""
+        self.locations = []
+        self.set_location_options([])
+        self.server_connect_button.configure(state="normal")
+        self.connect_button.configure(state="disabled")
+        self.server_status.set("尚未連線伺服器")
+
+    def begin_server_connection(self, check_default: bool = False) -> None:
         server_ip = normalize_server_ip(self.server_ip.get())
         if not server_ip:
-            self.set_location_options([])
-            return False
+            if not check_default:
+                messagebox.showerror("缺少伺服器IP", "請輸入伺服器IP")
+                self.server_entry.focus_set()
+            return
+        self.connection_serial += 1
+        serial = self.connection_serial
+        self.connected_server_ip = ""
+        self.locations = []
+        self.set_location_options([])
+        self.server_status.set("伺服器連線中，請稍後 ...")
+        self.server_connect_button.configure(state="disabled")
+        self.connect_button.configure(state="disabled")
+        threading.Thread(
+            target=self.fetch_server_locations,
+            args=(server_ip, serial, check_default),
+            daemon=True,
+        ).start()
+
+    def fetch_server_locations(self, server_ip: str, serial: int, check_default: bool) -> None:
         try:
             locations = fetch_locations(server_ip)
         except (OSError, URLError, TimeoutError) as exc:
-            self.locations = []
-            self.set_location_options([])
-            self.status.set(f"無法讀取場域：{exc}")
-            if check_default and server_ip == self.default_server_ip and not self.default_ip_prompted:
-                self.default_ip_prompted = True
-                if messagebox.askyesno("伺服器連線失敗", "連線不上伺服器，是否重新輸入伺服器 IP？"):
-                    self.server_ip.set("")
-                    self.server_entry.focus_set()
-            return False
+            self.root.after(0, self.finish_server_connection_error, server_ip, serial, check_default, str(exc))
+            return
+        self.root.after(0, self.finish_server_connection_success, server_ip, serial, locations)
+
+    def finish_server_connection_success(
+        self, server_ip: str, serial: int, locations: list[dict[str, str]]
+    ) -> None:
+        if serial != self.connection_serial or server_ip != normalize_server_ip(self.server_ip.get()):
+            return
         self.locations = locations
         self.set_location_options(locations)
-        return True
+        self.connected_server_ip = server_ip
+        self.server_ip.set(server_ip)
+        self.server_status.set(f"伺服器連線成功：http://{server_ip}:5000")
+        self.server_connect_button.configure(state="disabled")
+        self.connect_button.configure(state="normal")
+        self.log(f"伺服器連線成功：http://{server_ip}:5000")
+
+    def finish_server_connection_error(
+        self, server_ip: str, serial: int, check_default: bool, error: str
+    ) -> None:
+        if serial != self.connection_serial:
+            return
+        self.connected_server_ip = ""
+        self.locations = []
+        self.set_location_options([])
+        self.server_status.set(f"伺服器連線失敗：{error}")
+        self.server_connect_button.configure(state="normal")
+        self.connect_button.configure(state="disabled")
+        if check_default and server_ip == self.default_server_ip and not self.default_ip_prompted:
+            self.default_ip_prompted = True
+            if messagebox.askyesno("伺服器連線失敗", "連線不上伺服器，是否重新輸入伺服器 IP？"):
+                self.server_ip.set("")
+                self.server_entry.focus_set()
 
     def set_location_options(self, locations: list[dict[str, str]]) -> None:
         labels = [location["label"] for location in locations]
