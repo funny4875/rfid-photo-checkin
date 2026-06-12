@@ -91,6 +91,8 @@ class ClientWindow:
         self.status = StringVar(value="尚未連線")
         self.locations: list[dict[str, str]] = []
         self.config_machine_id = config["machine_id"]
+        self.default_server_ip = config["server_ip"]
+        self.default_ip_prompted = False
         self.icon_image = PhotoImage(file=str(ICON_PNG)) if ICON_PNG.exists() else None
         client_agent.start_reader()
 
@@ -144,7 +146,7 @@ class ClientWindow:
         self.log_box.pack(fill="both", expand=True)
 
         self.root.after(1000, self.refresh_status)
-        self.root.after(300, self.load_locations)
+        self.root.after(300, lambda: self.load_locations(check_default=True))
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
     def configure_styles(self) -> None:
@@ -177,8 +179,10 @@ class ClientWindow:
         if not server_ip:
             messagebox.showerror("缺少伺服器IP", "請輸入伺服器IP")
             return
-        if not self.locations:
-            self.load_locations()
+        if not self.locations and not self.load_locations():
+            messagebox.showerror("伺服器連線失敗", "連線不上伺服器，請重新輸入伺服器 IP。")
+            self.server_entry.focus_set()
+            return
         machine_id = self.selected_machine_id()
         if not machine_id:
             messagebox.showerror("缺少場域", "請先選擇場域")
@@ -195,18 +199,26 @@ class ClientWindow:
         self.status.set(f"已連線：{client_agent.BACKEND_BASE_URL}")
         self.log(f"開啟網頁：{target}")
 
-    def load_locations(self) -> None:
+    def load_locations(self, check_default: bool = False) -> bool:
         server_ip = normalize_server_ip(self.server_ip.get())
         if not server_ip:
             self.set_location_options([])
-            return
+            return False
         try:
             locations = fetch_locations(server_ip)
         except (OSError, URLError, TimeoutError) as exc:
+            self.locations = []
+            self.set_location_options([])
             self.status.set(f"無法讀取場域：{exc}")
-            return
+            if check_default and server_ip == self.default_server_ip and not self.default_ip_prompted:
+                self.default_ip_prompted = True
+                if messagebox.askyesno("伺服器連線失敗", "連線不上伺服器，是否重新輸入伺服器 IP？"):
+                    self.server_ip.set("")
+                    self.server_entry.focus_set()
+            return False
         self.locations = locations
         self.set_location_options(locations)
+        return True
 
     def set_location_options(self, locations: list[dict[str, str]]) -> None:
         labels = [location["label"] for location in locations]

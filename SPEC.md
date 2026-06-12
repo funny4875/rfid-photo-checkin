@@ -38,8 +38,10 @@ VERSION        版本序號
 2. 安裝 `server/requirements.txt` 所需套件。
 3. 開啟 `server/server_gui.py`。
 4. 顯示標題為 `門禁網頁伺服器` 的 GUI。
-5. 按 `啟動` 後執行 Flask server。
-6. 按 `停止` 後關閉 Flask server。
+5. GUI 列出本機可用 IPv4 位址，使用者需選擇一個 IP。
+6. 按 `啟動` 後，Flask server 只綁定所選 IP。
+7. server 執行期間不可切換綁定 IP；停止後可重新選擇。
+8. 按 `停止` 後關閉 Flask server。
 
 後端服務位址：
 
@@ -55,6 +57,8 @@ http://後端主機IP:5000
 4. 按 `網頁連線`。
 5. 啟動本機代理 `http://127.0.0.1:5055/`。
 6. Chrome 開啟本機代理頁面。
+
+若無法連線到 `client/config.txt` 中已儲存的預設伺服器 IP，client GUI 需顯示「連線不上伺服器，是否重新輸入伺服器 IP？」；使用者同意後清空 IP 欄位並聚焦輸入框。
 
 前端設定寫入：
 

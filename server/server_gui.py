@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import subprocess
+import socket
 import sys
 import threading
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -19,15 +20,40 @@ def app_version() -> str:
     return "0.0.0"
 
 
+def available_ipv4_addresses() -> list[str]:
+    addresses: set[str] = set()
+    try:
+        for item in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET, socket.SOCK_STREAM):
+            address = item[4][0]
+            if address and not address.startswith("127."):
+                addresses.add(address)
+    except OSError:
+        pass
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("8.8.8.8", 80))
+            address = probe.getsockname()[0]
+            if address and not address.startswith("127."):
+                addresses.add(address)
+    except OSError:
+        pass
+
+    return sorted(addresses, key=lambda value: tuple(int(part) for part in value.split("."))) or ["127.0.0.1"]
+
+
 class ServerGui:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.process: subprocess.Popen[str] | None = None
         self.status_var = tk.StringVar(value="已停止")
+        self.bind_ip = tk.StringVar()
+        self.bind_addresses = available_ipv4_addresses()
+        self.bind_ip.set(self.bind_addresses[0])
 
         root.title("門禁網頁伺服器")
-        root.geometry("520x250")
-        root.minsize(460, 220)
+        root.geometry("520x300")
+        root.minsize(460, 270)
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
         frame = tk.Frame(root, padx=22, pady=18)
@@ -43,6 +69,18 @@ class ServerGui:
         status_row.pack(fill="x", pady=(0, 8))
         tk.Label(status_row, text="狀態", width=10, anchor="w").pack(side="left")
         tk.Label(status_row, textvariable=self.status_var, anchor="w").pack(side="left", fill="x", expand=True)
+
+        bind_row = tk.Frame(frame)
+        bind_row.pack(fill="x", pady=(4, 8))
+        tk.Label(bind_row, text="綁定 IP", width=10, anchor="w").pack(side="left")
+        self.bind_select = ttk.Combobox(
+            bind_row,
+            textvariable=self.bind_ip,
+            values=self.bind_addresses,
+            state="readonly",
+            width=24,
+        )
+        self.bind_select.pack(side="left", fill="x", expand=True)
 
         buttons = tk.Frame(frame)
         buttons.pack(fill="x", pady=(10, 12))
@@ -63,8 +101,12 @@ class ServerGui:
     def start_server(self) -> None:
         if self.process and self.process.poll() is None:
             return
+        bind_ip = self.bind_ip.get().strip()
+        if bind_ip not in self.bind_addresses:
+            messagebox.showerror("綁定 IP 錯誤", "請選擇可用的本機 IP")
+            return
         self.process = subprocess.Popen(
-            [sys.executable, "app.py"],
+            [sys.executable, "app.py", "--host", bind_ip],
             cwd=BASE_DIR,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -73,10 +115,11 @@ class ServerGui:
             errors="replace",
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0,
         )
-        self.status_var.set("執行中：http://0.0.0.0:5000")
+        self.status_var.set(f"執行中：http://{bind_ip}:5000")
+        self.bind_select.configure(state="disabled")
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
-        self.append_log("伺服器已啟動")
+        self.append_log(f"伺服器已啟動：http://{bind_ip}:5000")
         threading.Thread(target=self.read_output, daemon=True).start()
         self.root.after(1000, self.watch_process)
 
@@ -111,6 +154,7 @@ class ServerGui:
         self.status_var.set(text)
         self.start_button.configure(state="normal")
         self.stop_button.configure(state="disabled")
+        self.bind_select.configure(state="readonly")
 
     def on_close(self) -> None:
         if self.process and self.process.poll() is None:

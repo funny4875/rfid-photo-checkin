@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import csv
 import io
 import re
@@ -751,5 +752,9 @@ def api_admin_student_data_restore():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="RFID Photo Check-in server")
+    parser.add_argument("--host", default="0.0.0.0", help="IPv4 address used to bind the Flask server")
+    parser.add_argument("--port", type=int, default=5000, help="TCP port used by the Flask server")
+    args = parser.parse_args()
     threading.Thread(target=scheduler_loop, daemon=True).start()
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host=args.host, port=args.port, debug=False)
