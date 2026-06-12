@@ -47,13 +47,14 @@ class ServerGui:
         self.root = root
         self.process: subprocess.Popen[str] | None = None
         self.status_var = tk.StringVar(value="已停止")
+        self.web_url = tk.StringVar(value="尚未啟動")
         self.bind_ip = tk.StringVar()
         self.bind_addresses = available_ipv4_addresses()
         self.bind_ip.set(self.bind_addresses[0])
 
         root.title("門禁網頁伺服器")
-        root.geometry("520x300")
-        root.minsize(460, 270)
+        root.geometry("520x340")
+        root.minsize(460, 310)
         root.protocol("WM_DELETE_WINDOW", self.on_close)
 
         frame = tk.Frame(root, padx=22, pady=18)
@@ -81,6 +82,12 @@ class ServerGui:
             width=24,
         )
         self.bind_select.pack(side="left", fill="x", expand=True)
+
+        url_row = tk.Frame(frame)
+        url_row.pack(fill="x", pady=(4, 8))
+        tk.Label(url_row, text="網頁網址", width=10, anchor="w").pack(side="left")
+        self.url_entry = ttk.Entry(url_row, textvariable=self.web_url, state="readonly")
+        self.url_entry.pack(side="left", fill="x", expand=True)
 
         buttons = tk.Frame(frame)
         buttons.pack(fill="x", pady=(10, 12))
@@ -115,11 +122,13 @@ class ServerGui:
             errors="replace",
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0,
         )
-        self.status_var.set(f"執行中：http://{bind_ip}:5000")
+        url = f"http://{bind_ip}:5000"
+        self.status_var.set("執行中")
+        self.web_url.set(url)
         self.bind_select.configure(state="disabled")
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
-        self.append_log(f"伺服器已啟動：http://{bind_ip}:5000")
+        self.append_log(f"伺服器已啟動，可由以下網址連入：{url}")
         threading.Thread(target=self.read_output, daemon=True).start()
         self.root.after(1000, self.watch_process)
 
@@ -152,6 +161,7 @@ class ServerGui:
 
     def set_stopped(self, text: str) -> None:
         self.status_var.set(text)
+        self.web_url.set("尚未啟動")
         self.start_button.configure(state="normal")
         self.stop_button.configure(state="disabled")
         self.bind_select.configure(state="readonly")

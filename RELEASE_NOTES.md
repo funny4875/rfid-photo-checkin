@@ -1,5 +1,9 @@
 # Release Notes
 
+## 1.1.12
+
+- server 啟動後會在獨立的「網頁網址」欄位顯示可連入的完整 URL，且可選取複製。
+
 ## 1.1.11
 
 - server GUI 啟動前會列出本機可用 IPv4，使用者可選擇 Flask 要綁定的 IP。
