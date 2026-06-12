@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from socketserver import TCPServer
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
@@ -14,6 +15,15 @@ from acr122_reader import ACR122Reader
 
 HOST = "127.0.0.1"
 PORT = 5055
+
+
+class LocalThreadingHTTPServer(ThreadingHTTPServer):
+    def server_bind(self):
+        """Bind locally without Windows hostname reverse lookup."""
+        TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = host
+        self.server_port = port
 BACKEND_BASE_URL = ""
 
 reader: ACR122Reader | None = None
@@ -206,7 +216,7 @@ if __name__ == "__main__":
         print(f"RFID reader startup error: {startup_error}", flush=True)
     threading.Thread(target=monitor_reader, daemon=True).start()
     try:
-        ThreadingHTTPServer((HOST, PORT), ClientAgentHandler).serve_forever()
+        LocalThreadingHTTPServer((HOST, PORT), ClientAgentHandler).serve_forever()
     except OSError as exc:
         print(f"HTTP server startup error: {exc}", flush=True)
         print("If port 5055 is already in use, close the old client.bat window and run client.bat again.", flush=True)

@@ -1,5 +1,10 @@
 # Release Notes
 
+## 1.1.17
+
+- client 本機 HTTP 代理不再反向查詢 Windows 主機名稱，修正部分 Python 3.7 電腦的 `UnicodeDecodeError`。
+- client GUI 會攔截代理啟動例外並顯示錯誤對話框，不再輸出 Tkinter callback traceback。
+
 ## 1.1.16
 
 - 更新檢查不再使用舊版 PowerShell 不支援的 `Get-Content -Raw`。

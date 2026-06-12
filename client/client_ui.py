@@ -5,7 +5,6 @@ import os
 import subprocess
 import threading
 import time
-from http.server import ThreadingHTTPServer
 from pathlib import Path
 from tkinter import END, Entry, Label, PhotoImage, StringVar, Tk
 from tkinter import messagebox, ttk
@@ -22,7 +21,7 @@ ICON_PNG = Path(__file__).resolve().parent / "assets" / "rfid_client_icon.png"
 LOCAL_URL = f"http://{client_agent.HOST}:{client_agent.PORT}/"
 
 server_thread: threading.Thread | None = None
-server_instance: ThreadingHTTPServer | None = None
+server_instance: client_agent.LocalThreadingHTTPServer | None = None
 
 
 def app_version() -> str:
@@ -317,8 +316,11 @@ class ClientWindow:
 
         client_agent.start_reader()
         try:
-            server_instance = ThreadingHTTPServer((client_agent.HOST, client_agent.PORT), client_agent.ClientAgentHandler)
-        except OSError as exc:
+            server_instance = client_agent.LocalThreadingHTTPServer(
+                (client_agent.HOST, client_agent.PORT),
+                client_agent.ClientAgentHandler,
+            )
+        except Exception as exc:
             messagebox.showerror("本機代理啟動失敗", f"無法啟動 127.0.0.1:5055\n{exc}\n\n請關閉舊的 client.bat 或 client_ui.py 後再試。")
             return False
         server_thread = threading.Thread(target=server_instance.serve_forever, daemon=True)

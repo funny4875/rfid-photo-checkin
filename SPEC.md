@@ -355,6 +355,7 @@ scripts/check_update.ps1
 - 更新腳本需先整理 `RepoRoot` 參數，避免多餘引號或空白造成路徑解析錯誤。
 - ZIP fallback 更新需相容 Windows PowerShell 5.1 / .NET Framework，不得依賴 `Path.GetRelativePath()`。
 - 版本檔讀取不得依賴 `Get-Content -Raw`，主控台輸出失敗不得阻止 client 或 server 啟動。
+- client 本機 HTTP 代理綁定 `127.0.0.1` 時不得反向查詢 Windows 主機名稱，以相容含非 UTF-8 主機名稱的舊版 Python 環境。
 - 優先使用 Git 檢查 `origin/main`。
 - 若本機落後且可 fast-forward，跳出對話框詢問是否更新。
 - 更新完成後提示重新執行啟動檔。
