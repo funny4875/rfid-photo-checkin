@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.15
+
+- ZIP fallback 更新不再使用舊版 .NET Framework 缺少的 `Path.GetRelativePath()`。
+- 新增 Windows PowerShell 5.1 相容的相對路徑計算，修正 `Method invocation failed`。
+- 更新腳本明確設定 UTF-8 命令列輸出，改善中文版本訊息重複或亂碼。
+
 ## 1.1.14
 
 - client GUI 新增「伺服器連線」按鈕，連線動作改為背景執行。

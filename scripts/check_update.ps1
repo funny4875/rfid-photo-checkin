@@ -6,6 +6,9 @@
 )
 
 $ErrorActionPreference = "Stop"
+$utf8Output = New-Object System.Text.UTF8Encoding($false)
+[Console]::OutputEncoding = $utf8Output
+$OutputEncoding = $utf8Output
 
 function Show-Question($message, $title) {
     Add-Type -AssemblyName PresentationFramework
@@ -179,9 +182,19 @@ function Should-SkipRelativePath($relativePath) {
     return $false
 }
 
+function Get-CompatibleRelativePath($basePath, $fullPath) {
+    $baseFullPath = [System.IO.Path]::GetFullPath($basePath).TrimEnd('\', '/')
+    $itemFullPath = [System.IO.Path]::GetFullPath($fullPath)
+    $prefix = $baseFullPath + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $itemFullPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "更新檔案不在下載來源資料夾內：$itemFullPath"
+    }
+    return $itemFullPath.Substring($prefix.Length)
+}
+
 function Copy-UpdateFiles($sourceRoot, $targetRoot) {
     Get-ChildItem -LiteralPath $sourceRoot -Recurse -Force | ForEach-Object {
-        $relative = [System.IO.Path]::GetRelativePath($sourceRoot, $_.FullName)
+        $relative = Get-CompatibleRelativePath $sourceRoot $_.FullName
         if (Should-SkipRelativePath $relative) {
             return
         }
