@@ -166,6 +166,7 @@ function Should-SkipRelativePath($relativePath) {
     if ($p -eq "server/student_data.txt") { return $true }
     if ($p -eq "server/場域對應.txt") { return $true }
     if ($p -eq "client/config.txt") { return $true }
+    if ($p -eq "server/config.txt") { return $true }
     if ($p -eq "server/ccsh_data" -or $p.StartsWith("server/ccsh_data/")) { return $true }
     if ($p -eq "server/backups" -or $p.StartsWith("server/backups/")) { return $true }
     if ($p -match '^server/[0-9]{4}(/|$)') { return $true }

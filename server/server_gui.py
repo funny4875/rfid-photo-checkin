@@ -12,6 +12,7 @@ from tkinter import messagebox, ttk
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
 VERSION_FILE = ROOT_DIR / "VERSION"
+CONFIG_FILE = BASE_DIR / "config.txt"
 
 
 def app_version() -> str:
@@ -42,15 +43,31 @@ def available_ipv4_addresses() -> list[str]:
     return sorted(addresses, key=lambda value: tuple(int(part) for part in value.split("."))) or ["127.0.0.1"]
 
 
+def read_saved_bind_ip() -> str:
+    if not CONFIG_FILE.exists():
+        return ""
+    return CONFIG_FILE.read_text(encoding="utf-8-sig").strip()
+
+
+def save_bind_ip(bind_ip: str) -> None:
+    CONFIG_FILE.write_text(bind_ip.strip() + "\n", encoding="utf-8")
+
+
+def preferred_bind_ip(addresses: list[str]) -> str:
+    saved_bind_ip = read_saved_bind_ip()
+    return saved_bind_ip if saved_bind_ip in addresses else addresses[0]
+
+
 class ServerGui:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.process: subprocess.Popen[str] | None = None
+        self.pending_bind_ip = ""
         self.status_var = tk.StringVar(value="已停止")
         self.web_url = tk.StringVar(value="尚未啟動")
         self.bind_ip = tk.StringVar()
         self.bind_addresses = available_ipv4_addresses()
-        self.bind_ip.set(self.bind_addresses[0])
+        self.bind_ip.set(preferred_bind_ip(self.bind_addresses))
 
         root.title("門禁網頁伺服器")
         root.geometry("520x340")
@@ -122,6 +139,7 @@ class ServerGui:
             errors="replace",
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0,
         )
+        self.pending_bind_ip = bind_ip
         url = f"http://{bind_ip}:5000"
         self.status_var.set("執行中")
         self.web_url.set(url)
@@ -155,8 +173,12 @@ class ServerGui:
         if not self.process:
             return
         if self.process.poll() is None:
+            if self.pending_bind_ip:
+                save_bind_ip(self.pending_bind_ip)
+                self.pending_bind_ip = ""
             self.root.after(1000, self.watch_process)
             return
+        self.pending_bind_ip = ""
         self.set_stopped("已停止")
 
     def set_stopped(self, text: str) -> None:

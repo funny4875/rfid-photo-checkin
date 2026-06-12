@@ -41,8 +41,10 @@ VERSION        版本序號
 5. GUI 列出本機可用 IPv4 位址，使用者需選擇一個 IP。
 6. 按 `啟動` 後，Flask server 只綁定所選 IP。
 7. 啟動後 GUI 的 `網頁網址` 唯讀欄位需顯示完整 URL，例如 `http://210.70.250.152:5000`，並允許選取複製。
-8. server 執行期間不可切換綁定 IP；停止後可重新選擇。
-9. 按 `停止` 後關閉 Flask server，`網頁網址` 顯示為尚未啟動。
+8. 選擇的綁定 IP 儲存在 `server/config.txt`；下次開啟時若該 IP 仍在可用清單中，需自動選為預設。
+9. 已儲存 IP 不再可用時，需退回目前第一個可用 IP。
+10. server 執行期間不可切換綁定 IP；停止後可重新選擇。
+11. 按 `停止` 後關閉 Flask server，`網頁網址` 顯示為尚未啟動。
 
 後端服務位址：
 
@@ -363,6 +365,7 @@ scripts/check_update.ps1
 - `server/門禁記錄*.txt`
 - `server/<西元年份>/`
 - `client/config.txt`
+- `server/config.txt`
 - log、cache、preview 圖
 
 ## 15. 測試與驗證

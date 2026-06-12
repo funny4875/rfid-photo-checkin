@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.13
+
+- server GUI 會將上次選擇的綁定 IP 記錄在 `server/config.txt`。
+- 下次開啟時若該 IP 仍可用，會自動設為預設；若已不可用則改選目前第一個可用 IP。
+- 自動更新與 Git 皆會保留本機 server IP 設定。
+
 ## 1.1.12
 
 - server 啟動後會在獨立的「網頁網址」欄位顯示可連入的完整 URL，且可選取複製。

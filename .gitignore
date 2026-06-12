@@ -14,8 +14,9 @@ rfid_fullscreen_preview*.png
 admin_student_import_check*.png
 server/admin_check.*
 
-# Local client configuration
+# Local machine configuration
 client/config.txt
+server/config.txt
 
 # Python cache
 __pycache__/
