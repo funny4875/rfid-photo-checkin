@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.18
+
+- RFID UID 十進位分段轉換改回舊版 byte 順序，符合既有學生資料 UID。
+- 新增 `GET /api/attendance/summary/<YYYYMMDD>` 出勤總結 API，支援 JSON 與純文字回應。
+- 新增 `lineMsg/lineMsg.py` 以出勤總結 API 取得每日推播資料，不再依賴 `z:/RFID` 記錄檔。
+
 ## 1.1.17
 
 - client 本機 HTTP 代理不再反向查詢 Windows 主機名稱，修正部分 Python 3.7 電腦的 `UnicodeDecodeError`。
