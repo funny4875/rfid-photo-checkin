@@ -19,16 +19,16 @@ http://<伺服器IP>:5000
 3. 讀卡程式透過 Windows PC/SC WinSCard API 偵測讀卡機。
 4. 使用者將卡片靠近 ACR122U。
 5. 系統送出 APDU `FF CA 00 00 00` 讀取卡片 HEX UID。
-6. 系統取 HEX UID 前 4 bytes，轉成十進位分段 UID：
+6. 系統取 HEX UID 前 4 bytes，依舊版讀卡程式的 byte 順序轉成十進位分段 UID：
 
 ```text
-高 16 位:低 16 位
+第 4 byte + 第 3 byte : 第 2 byte + 第 1 byte
 ```
 
 各段補成 5 碼，例如：
 
 ```text
-07937:26162
+HEX AABBCCDD -> 56780:48042
 ```
 
 7. 前端輪詢 `/api/rfid/status`，取得最新刷卡事件。

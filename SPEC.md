@@ -319,6 +319,7 @@ server/門禁記錄_<YYYYMMDD>.txt
 - `POST /api/checkin_uid`
 - `GET /api/student/<student_id>`
 - `GET /api/records?machine_id=<id>`
+- `GET /api/attendance/summary/<YYYYMMDD>`
 - `DELETE /api/records/<machine_id>/<index>`
 - `GET /api/rfid/status`
 - `GET /photo/<path>`

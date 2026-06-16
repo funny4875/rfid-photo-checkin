@@ -465,6 +465,108 @@ def records_for_machine(machine_id: str, date_text: str | None = None) -> list[d
     return [parse_record(line, index) for index, line in enumerate(read_record_lines(record_path(machine_id, date_text)))]
 
 
+def normalize_summary_date(value: str | None) -> str:
+    raw = (value or today_str()).strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        raw = raw.replace("-", "")
+    if not re.fullmatch(r"\d{8}", raw):
+        raise ValueError("日期格式需為 YYYYMMDD 或 YYYY-MM-DD")
+    try:
+        datetime.strptime(raw, "%Y%m%d")
+    except ValueError as exc:
+        raise ValueError("日期不存在") from exc
+    return raw
+
+
+def summary_record_paths(date_text: str) -> list[Path]:
+    year_dir = BASE_DIR / date_text[:4]
+    candidates = list(BASE_DIR.glob(f"門禁記錄[0-9]*_{date_text}.txt"))
+    if year_dir.exists():
+        candidates.extend(year_dir.glob(f"門禁記錄[0-9]*_{date_text}.txt"))
+    return sorted(candidates, key=lambda item: item.name)
+
+
+def read_records_from_path(path: Path) -> list[dict[str, str | int]]:
+    return [parse_record(line, index) for index, line in enumerate(read_record_lines(path))]
+
+
+def machine_id_from_record_file(path: Path) -> str:
+    match = re.match(r"^門禁記錄(\d+)_(\d{8})\.txt$", path.name)
+    return match.group(1) if match else ""
+
+
+def build_attendance_summary(date_text: str) -> dict[str, object]:
+    locations_by_id = {location["machine_id"]: location["label"] for location in load_locations()}
+    files = summary_record_paths(date_text)
+    all_records: list[dict[str, str | int]] = []
+    by_machine: dict[str, dict[str, object]] = {}
+    by_direction = {direction: 0 for direction in sorted(VALID_DIRECTIONS)}
+    unique_students: set[str] = set()
+
+    for path in files:
+        machine_id = machine_id_from_record_file(path)
+        label = locations_by_id.get(machine_id, f"機台{machine_id}")
+        records = read_records_from_path(path)
+        machine_summary = {
+            "machine_id": machine_id,
+            "label": label,
+            "file": path.name,
+            "count": len(records),
+            "by_direction": {direction: 0 for direction in sorted(VALID_DIRECTIONS)},
+        }
+        for record in records:
+            record_with_machine = dict(record)
+            record_with_machine["machine_id"] = machine_id
+            record_with_machine["machine_label"] = label
+            all_records.append(record_with_machine)
+            direction = str(record.get("direction") or "")
+            if direction:
+                by_direction[direction] = by_direction.get(direction, 0) + 1
+                machine_summary["by_direction"][direction] = machine_summary["by_direction"].get(direction, 0) + 1
+            student_id = str(record.get("student_id") or "").strip()
+            if student_id:
+                unique_students.add(student_id)
+        by_machine[machine_id] = machine_summary
+
+    all_records.sort(key=lambda record: str(record.get("time") or ""))
+    date_display = datetime.strptime(date_text, "%Y%m%d").strftime("%Y-%m-%d")
+    lines = [
+        f"{date_display} 出勤總結",
+        f"總筆數：{len(all_records)}",
+        f"刷進：{by_direction.get('刷進', 0)}，刷出：{by_direction.get('刷出', 0)}",
+        f"出勤學生數：{len(unique_students)}",
+    ]
+    if by_machine:
+        lines.append("各場域：")
+        for machine in sorted(by_machine.values(), key=lambda item: int(str(item["machine_id"]) or 0)):
+            machine_directions = machine["by_direction"]
+            lines.append(
+                f"- {machine['label']}：{machine['count']} 筆"
+                f"（刷進 {machine_directions.get('刷進', 0)}，刷出 {machine_directions.get('刷出', 0)}）"
+            )
+    else:
+        lines.append("沒有找到當日出勤紀錄。")
+    if all_records:
+        lines.append("明細：")
+        for record in all_records:
+            lines.append(
+                f"{record.get('time')} {record.get('student_id')} "
+                f"{record.get('class_name')} {record.get('seat')} {record.get('name')} "
+                f"{record.get('direction')}（{record.get('machine_label')}）"
+            )
+
+    return {
+        "date": date_text,
+        "date_display": date_display,
+        "summary": "\n".join(lines),
+        "total": len(all_records),
+        "by_direction": by_direction,
+        "unique_student_count": len(unique_students),
+        "by_machine": list(by_machine.values()),
+        "records": all_records,
+    }
+
+
 def write_record(machine_id: str, student: dict[str, str], direction: str) -> dict[str, str | int]:
     now = datetime.now().strftime("%H:%M:%S")
     line = "\t".join(
@@ -657,6 +759,19 @@ def api_records():
     if machine_id not in valid_machine_ids():
         return jsonify({"error": "機台錯誤"}), 400
     return jsonify({"records": records_for_machine(machine_id)})
+
+
+@app.get("/api/attendance/summary")
+@app.get("/api/attendance/summary/<date_value>")
+def api_attendance_summary(date_value: str | None = None):
+    try:
+        date_text = normalize_summary_date(date_value or request.args.get("date"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    summary = build_attendance_summary(date_text)
+    if (request.args.get("format") or "").strip().lower() == "text":
+        return app.response_class(summary["summary"], mimetype="text/plain; charset=utf-8")
+    return jsonify(summary)
 
 
 @app.delete("/api/records/<machine_id>/<int:index>")

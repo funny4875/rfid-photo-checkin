@@ -240,6 +240,6 @@ def decimal_split_uid(uid_hex: str) -> str:
     if len(clean) < 8:
         return ""
     four_bytes = clean[:8]
-    high = int(four_bytes[:4], 16)
-    low = int(four_bytes[4:8], 16)
-    return f"{high:05d}:{low:05d}"
+    first = int(four_bytes[6:8] + four_bytes[4:6], 16)
+    second = int(four_bytes[2:4] + four_bytes[0:2], 16)
+    return f"{first:05d}:{second:05d}"

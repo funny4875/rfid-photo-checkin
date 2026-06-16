@@ -126,6 +126,17 @@ server/場域對應.txt
 - 學生照片需由前台查詢或刷卡成功後取得短效 token 才能讀取。
 - 同一來源若在短時間內大量下載照片，系統會暫時阻擋照片請求。
 
+## 出勤總結 API
+
+自動化工具可用 HTTP GET 取得指定日期的出勤總結：
+
+```text
+/api/attendance/summary/20260609
+/api/attendance/summary?date=20260609
+```
+
+日期可用 `YYYYMMDD` 或 `YYYY-MM-DD`。預設回傳 JSON，包含 `summary`、統計數字和明細；加上 `?format=text` 時會直接回傳純文字總結。
+
 ## 需求
 
 - Windows
