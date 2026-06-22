@@ -1,5 +1,15 @@
 # Release Notes
 
+## 1.1.20
+
+- 修正 `lineMsg/lineMsg.py` 在部分 Tkinter/Thonny 環境因中文字型名稱含空白導致 GUI 啟動失敗。
+
+## 1.1.19
+
+- `lineMsg/lineMsg.py` 改為 GUI 工具，可設定伺服器網址、LINE 視窗名稱與每日推播時間。
+- 新增補發指定日期 `yyyymmdd` 出勤訊息與訊息預覽功能。
+- LINE 推播流程加強例外處理，無法取得資料、無法載入 autoline 或找不到 LINE 視窗時會顯示在系統訊息，不直接中斷。
+
 ## 1.1.18
 
 - RFID UID 十進位分段轉換改回舊版 byte 順序，符合既有學生資料 UID。
