@@ -21,6 +21,8 @@ server/config.txt
 lineMsg/lineMsg_config.json
 
 # Python cache
+build/
+dist/
 __pycache__/
 */__pycache__/
 *.py[cod]

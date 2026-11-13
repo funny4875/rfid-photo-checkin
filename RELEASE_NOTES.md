@@ -1,5 +1,10 @@
 # Release Notes
 
+## 1.1.21
+
+- 新增獨立出勤查詢視窗，輸入伺服器網址與日期即可查詢當日紀錄。
+- 提供 Windows MSI 安裝檔及開始功能表捷徑，使用時不需另裝 Python。
+
 ## 1.1.20
 
 - 修正 `lineMsg/lineMsg.py` 在部分 Tkinter/Thonny 環境因中文字型名稱含空白導致 GUI 啟動失敗。
