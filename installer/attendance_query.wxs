@@ -15,9 +15,16 @@
         <RegistryValue Root="HKCU" Key="Software\CCSH\AttendanceQuery" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="*">
+        <Shortcut Id="DesktopQueryShortcut" Name="出勤紀錄查詢" Target="[INSTALLFOLDER]AttendanceQuery.exe" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\CCSH\AttendanceQuery" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
     <Feature Id="Main" Title="Attendance Query">
       <ComponentRef Id="Application" />
       <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
     </Feature>
   </Package>
 </Wix>

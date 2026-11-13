@@ -4,8 +4,10 @@ import datetime
 import json
 import queue
 import re
+import sys
 import threading
 import tkinter as tk
+from pathlib import Path
 from tkinter import ttk
 from urllib.parse import urlsplit
 from urllib.request import urlopen
@@ -41,6 +43,9 @@ class AttendanceQuery:
         self.date = tk.StringVar(value=datetime.date.today().strftime("%Y%m%d"))
         self.status = tk.StringVar(value="請輸入日期並查詢")
         root.title("出勤紀錄查詢")
+        icon = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "assets" / "attendance_query.ico"
+        if icon.exists():
+            root.iconbitmap(str(icon))
         root.geometry("900x560")
         root.minsize(680, 400)
 
