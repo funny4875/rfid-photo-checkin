@@ -7,7 +7,7 @@ New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 $buildDir = Join-Path $root "build\attendance-query"
 New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 $icon = Join-Path $root "client\assets\attendance_query.ico"
-& pyinstaller --noconfirm --clean --onefile --windowed --name AttendanceQuery --icon $icon --add-data "${icon};assets" --distpath $buildDir --workpath (Join-Path $buildDir "work") --specpath $buildDir (Join-Path $root "client\attendance_query.py")
+& pyinstaller --noconfirm --clean --onefile --windowed --name AttendanceQuery --icon $icon --add-data "${icon};assets" --add-data "$(Join-Path $root 'VERSION');." --distpath $buildDir --workpath (Join-Path $buildDir "work") --specpath $buildDir (Join-Path $root "client\attendance_query.py")
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
 $exe = Join-Path $buildDir "AttendanceQuery.exe"
 $msi = Join-Path $OutputDir "AttendanceQuery-$version.msi"
