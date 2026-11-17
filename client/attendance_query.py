@@ -6,10 +6,12 @@ import json
 import os
 import queue
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import threading
 import tkinter as tk
-import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from urllib.parse import urlsplit
@@ -42,6 +44,23 @@ def check_for_update(current: str) -> tuple[str, str] | None:
     if not any(asset.get("name") == asset_name and asset.get("state") == "uploaded" for asset in release.get("assets", [])):
         return None
     return version, f"https://github.com/funny4875/rfid-photo-checkin/releases/download/{tag}/{asset_name}"
+
+
+def download_update(url: str) -> str:
+    path = None
+    try:
+        request = Request(url, headers={"User-Agent": "CCSH-AttendanceQuery"})
+        with urlopen(request, timeout=30) as response, tempfile.NamedTemporaryFile(prefix="attendance-update-", suffix=".msi", delete=False) as output:
+            path = output.name
+            shutil.copyfileobj(response, output)
+        with open(path, "rb") as downloaded:
+            if downloaded.read(8) != b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
+                raise ValueError("下載的檔案不是有效的 MSI 安裝檔")
+        return path
+    except Exception:
+        if path:
+            Path(path).unlink(missing_ok=True)
+        raise
 
 
 def normalize_server(server: str) -> str:
@@ -138,13 +157,14 @@ class AttendanceQuery:
         self.root = root
         self.results: queue.Queue = queue.Queue()
         self.updates: queue.Queue = queue.Queue()
+        self.update_downloads: queue.Queue = queue.Queue()
         self.server = tk.StringVar(value=read_server())
         self.start_date = tk.StringVar(value=datetime.date.today().strftime("%Y%m%d"))
         self.end_date = tk.StringVar(value=datetime.date.today().strftime("%Y%m%d"))
         self.records: list | None = None
         self.result_dates = ("", "")
         self.status = tk.StringVar(value="請輸入起訖日期並查詢")
-        root.title("出勤紀錄查詢")
+        root.title(f"出勤紀錄查詢 v{application_version()}")
         icon = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "assets" / "attendance_query.ico"
         if icon.exists():
             root.iconbitmap(str(icon))
@@ -199,6 +219,12 @@ class AttendanceQuery:
                 self.updates.put(update)
         except Exception:
             pass
+
+    def _download_update(self, url: str) -> None:
+        try:
+            self.update_downloads.put((download_update(url), None))
+        except Exception as exc:
+            self.update_downloads.put((None, str(exc)))
 
     def ask_server(self) -> None:
         value = simpledialog.askstring("伺服器設定", "請輸入出勤系統的伺服器網址：", parent=self.root)
@@ -260,9 +286,26 @@ class AttendanceQuery:
         except queue.Empty:
             pass
         else:
-            if messagebox.askyesno("程式更新", f"發現新版本 {version}，是否下載更新？", parent=self.root):
-                if not webbrowser.open(url):
-                    messagebox.showerror("程式更新", "無法開啟下載連結，請到 GitHub Release 下載。", parent=self.root)
+            if messagebox.askyesno("程式更新", f"發現新版本 {version}，是否下載並啟動安裝？\n安裝前程式會關閉。", parent=self.root):
+                self.status.set(f"正在下載版本 {version}…")
+                threading.Thread(target=self._download_update, args=(url,), daemon=True).start()
+        try:
+            installer, download_error = self.update_downloads.get_nowait()
+        except queue.Empty:
+            pass
+        else:
+            if download_error:
+                self.status.set("更新下載失敗")
+                messagebox.showerror("程式更新", f"下載失敗：{download_error}", parent=self.root)
+            else:
+                try:
+                    subprocess.Popen(["msiexec.exe", "/i", installer])
+                except OSError as exc:
+                    self.status.set("無法啟動安裝程式")
+                    messagebox.showerror("程式更新", f"無法啟動安裝程式：{exc}", parent=self.root)
+                else:
+                    self.root.destroy()
+                    return
         try:
             start, end, records, error = self.results.get_nowait()
         except queue.Empty:

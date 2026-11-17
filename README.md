@@ -2,7 +2,7 @@
 
 RFID Photo Check-in 是一套校園門禁/出勤登記系統，支援 ACR122U 讀卡機、照片核對、場域別名管理與每日門禁紀錄整併。
 
-目前版本：`1.1.24`
+目前版本：`1.1.25`
 
 ## 功能
 
@@ -132,7 +132,7 @@ server/場域對應.txt
 
 首次啟動會詢問伺服器網址，並儲存在目前使用者的 `%APPDATA%\CCSH\AttendanceQuery\config.json`；之後啟動會自動載入，也可在視窗中修改。
 
-程式啟動時會在背景檢查 GitHub Release；發現有新版 MSI 時，可選擇下載並自行安裝。
+程式標題列顯示目前版本，啟動時會在背景檢查 GitHub Release；發現新版 MSI 時，可選擇下載並啟動安裝程式。
 
 也可從 GitHub Releases 下載 `AttendanceQuery-<版本>.msi` 安裝，安裝後從桌面或 Windows 開始功能表開啟「出勤紀錄查詢」，不需要另裝 Python。產生安裝檔需安裝 PyInstaller 與 WiX，執行 `powershell -ExecutionPolicy Bypass -File scripts\build_attendance_msi.ps1`。
 
